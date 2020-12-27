@@ -3,7 +3,9 @@
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>netcoreapp5.0</TargetFramework>
-    <StartupObject>antlr4_example.Program</StartupObject>
+    <StartupObject>TestTextTemplates.Program</StartupObject>
+    <AssemblyName>TextTemplateCSharp</AssemblyName>
+    <RootNamespace>TestTextTemplate</RootNamespace>
   </PropertyGroup>
 
   <ItemGroup>

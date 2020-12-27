@@ -2,8 +2,10 @@
 using System.IO;
 using System.Text;
 using Antlr4.Runtime;
+using TextTemplate;
+using System.Diagnostics;
 
-namespace antlr4_example
+namespace TestTextTemplates
 {
 	internal static class Program
 	{
@@ -11,8 +13,7 @@ namespace antlr4_example
 		{
 			try
 			{
-				string input;
-				var text = new StringBuilder();
+				/*var text = new StringBuilder();
 				Console.WriteLine("Input the chat.");
 
 				// to end the input, enter a blank line then press <enter> 
@@ -32,6 +33,17 @@ namespace antlr4_example
 				{
 					Console.WriteLine("{0} has said {1}", line.Person, line.Text);
 				}
+				*/
+				string input = @"{'{""hello"":""world""}':[{""hello""}:{hello}]}";
+				AntlrInputStream inputStream = new AntlrInputStream(input);
+				TextTemplateLexer textTemplateLexer = new TextTemplateLexer(inputStream);
+				CommonTokenStream commonTokenStream = new CommonTokenStream(textTemplateLexer);
+				TextTemplateParser textTemplateParser = new TextTemplateParser(commonTokenStream);
+				TextTemplateParser.CompilationUnitContext compilationUnitContext = textTemplateParser.compilationUnit();
+				TextTemplateVisitor visitor = new TextTemplateVisitor();
+				string interpolated = (string)visitor.Visit(compilationUnitContext);
+				Debug.Write(interpolated);
+				Console.Write(interpolated);
 			}
 			catch (Exception ex)
 			{
