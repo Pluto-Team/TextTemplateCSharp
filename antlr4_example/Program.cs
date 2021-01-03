@@ -11,44 +11,44 @@ namespace TestTextTemplates
 	{
 		private static void Main(string[] args)
 		{
-			try
-			{
-				/*var text = new StringBuilder();
-				Console.WriteLine("Input the chat.");
+			//try
+			//{
+				string input;
+				//input = @"{'{""hello"":""world""}':[{""hello""}:{hello}]}";
+				input = @"// data context:
+{'{""firstName"": ""Robert"", ""lastName"": ""Smith"", ""pets"":[
+{""type"":""dog"", ""name"": ""Toto""}
+,{""type"":""cat"", ""name"": ""Dolly""}
+,{""type"":""zebra"", ""name"": ""Stripes""}
+]}':
+// Template:
+[{""Hello""} {lastName}, {firstName} with {pets=>
+   [{pets:#formatPet.#anded()}]
+   ,[no pets]
+}!!]}
 
-				// to end the input, enter a blank line then press <enter> 
-				while ((input = Console.ReadLine()) != "")
-				{
-					text.AppendLine(input);
-				}
+Subtemplates:
 
-				var inputStream = new AntlrInputStream(text.ToString());
-				var speakLexer = new SpeakLexer(inputStream);
-				var commonTokenStream = new CommonTokenStream(speakLexer);
-				var speakParser = new SpeakParser(commonTokenStream);
-				var chatContext = speakParser.chat();
-				var visitor = new SpeakVisitor();
-				visitor.Visit(chatContext);
-				foreach (var line in visitor.Lines)
-				{
-					Console.WriteLine("{0} has said {1}", line.Person, line.Text);
-				}
-				*/
-				string input = @"{'{""hello"":""world""}':[{""hello""}:{hello}]}";
+{#formatPet:[a {type} named {name}]}
+{#anded:[{$0.Join(', ',' and ')}]}";
+			input = input.Replace("\r", "");
 				AntlrInputStream inputStream = new AntlrInputStream(input);
 				TextTemplateLexer textTemplateLexer = new TextTemplateLexer(inputStream);
 				CommonTokenStream commonTokenStream = new CommonTokenStream(textTemplateLexer);
 				TextTemplateParser textTemplateParser = new TextTemplateParser(commonTokenStream);
 				TextTemplateParser.CompilationUnitContext compilationUnitContext = textTemplateParser.compilationUnit();
 				TextTemplateVisitor visitor = new TextTemplateVisitor();
-				string interpolated = (string)visitor.Visit(compilationUnitContext);
-				Debug.Write(interpolated);
-				Console.Write(interpolated);
-			}
-			catch (Exception ex)
-			{
-				Console.WriteLine("Error: " + ex);
-			}
+				string result = visitor.interpret(input);
+				Debug.Write(result);
+				Console.Write(result);
+			//object interpolated = (string)visitor.Visit(compilationUnitContext);
+			//Debug.Write(interpolated);
+			//Console.Write(interpolated);
+			//}
+			//catch (Exception ex)
+			//{
+			//	Console.WriteLine("Error: " + ex);
+			//}
 		}
 	}
 }

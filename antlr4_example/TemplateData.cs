@@ -3,158 +3,237 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Text.RegularExpressions;
+using System.Text.Json;
 
-namespace TestTextTemplate
+namespace TextTemplate
 {
     class TemplateData
     {
-		/*
-			private dictionary = {};
-			private list: TemplateData[] = [];
-			private parent : TemplateData;
-			static foundObjects : any; // used to protect against ToJson loops
-			type: string;
-			constructor(jsonData: string | {} | [], parent?: TemplateData) {
-				let json: {};
-				if (typeof jsonData == 'string') {
-					if (jsonData.startsWith('{') || jsonData.startsWith('[')){
-						json = JSON.parse(jsonData);
-					} else {
-						// TemplateData supports arrays of strings by making them lists of dictionaries with a single 
-						json = JSON.parse('{"_": "' + jsonData.replace('"','\\"') + '"}');
-					}
-				} else if (Array.isArray(jsonData)) {
-					this.type = 'list';
-					let array: [] = jsonData;
-					array.forEach((item) => {
-						this.list.push(new TemplateData(item, this));
+		private Dictionary<string, object> dictionary = new Dictionary<string, object>();
+		private List<TemplateData> list = new List<TemplateData>();
+		private TemplateData parent;
+		public string type;
+		static List<object> foundObjects; // used to protect against ToJspn loops
+		public TemplateData(object jsonData, TemplateData parent = null)
+		{
+			object json;
+			if (jsonData is string)
+			{
+				if (((string)jsonData).StartsWith("{") || ((string)jsonData).StartsWith("["))
+				{
+					json = JsonSerializer.Deserialize<Dictionary<string,object>>((string)jsonData);
+				}
+				else
+				{
+					// TemplateData supports arrays of strings by making them lists of dictionaries with a single element
+					json = JsonSerializer.Deserialize<dynamic>("{\"_\": \"" + ((string)jsonData).Replace("\"", "\\\"") + "\"}");
+				}
+				/*} else if (Array.isArray(jsonData)) { 
+				   this. type = 'list'; 
+					let array: [] = jsonData; 
+					array.forEach((item) => { 
+					this.list.push(new TemplateData(item, this)); 
+					} ) ; 
+					this.parent = parent; 
+					return; 
+					*/
+			}
+			else if (jsonData is TemplateData)
+			{
+				// filter or clone
+				if (((TemplateData)jsonData).type == "list")
+				{
+					this.type = "list";
+					((TemplateData)jsonData).list.ForEach((item) =>
+					{
+						this.list.Add(new TemplateData(item, parent));
 					});
-					this.parent = parent;
 					return;
-				} else if (jsonData instanceof TemplateData){ // filter or clone
-					if ((<TemplateData>jsonData).type == 'list'){
-						this.type = 'list';
-						(<TemplateData>jsonData).list.forEach((item)=>{
-							this.list.push(new TemplateData(item, parent));
-						});
-						return;
-					} else {
-						json = JSON.parse((<TemplateData>jsonData).toJson()); // clone by converting to Json and back
-					}
-				} else {
-					json = jsonData;
 				}
-				if (Array.isArray(json)){
-					this.type = 'list';
-					json.forEach((item) => {
-						this.list.push(new TemplateData(item, this));
-					});
-				} else {
-					this.type = 'dictionary';
-					Object.keys(json).forEach((keyname) => {
-						let value: any = json[keyname];
-						if (typeof value == 'object' && value != null) {
-							if (value != null && (!Array.isArray(value) || value.length > 0)){ // don't add null values or empty arrays
-								this.dictionary[keyname] = new TemplateData(value, this);
-							}
-						} else {
-							this.dictionary[keyname] = value;
-						}
-					});
-				}
-				if (parent){
-					this.parent = parent;
+				else
+				{
+					json = JsonSerializer.Deserialize<Dictionary<string, object>>(((TemplateData)jsonData).toJson()); // clone by converting to Json and back
 				}
 			}
-			getKeys() : string[] {
-				return Object.keys(this.dictionary);
+			else
+			{
+				json = jsonData;
 			}
-			getValue(key : string) : any {
-				let keySplit = key.split('.');
-				let value = this.dictionary[keySplit[0]];
-				if (value == undefined && keySplit[0] == '^'){
-					value = this.parent; 
-					if (value == undefined){
-						value = this; // allows ^.^... to get to the top
-					}
-				}
-				if (keySplit.length == 1 || value === undefined){
-					return value;
-				}
-				if (value instanceof TemplateData){
-					return <TemplateData>value.getValue(keySplit.slice(1).join('.'));
-				}
-			}
-			iterateList(fn: (TemplateData) => any) {
-				this.list.forEach((item : TemplateData)=>{
-					fn(item);
+			if (json is JsonElement && ((JsonElement)json).ValueKind.ToString() == "Array")
+			{
+				this.type = "list";
+				((JsonElement)json).EnumerateArray().ToList().ForEach(item =>
+				{
+					this.list.Add(new TemplateData(item.ToString(), this));
 				});
 			}
-			count(){
-				return this.list.length;
+			else
+			{
+				this.type = "dictionary";
+				((Dictionary<string, object>)json).Keys.ToList().ForEach(keyname =>
+				   {
+					   object value = ((Dictionary<string, object>)json)[keyname];
+					   if (value is JsonElement)
+                       {
+							switch (((JsonElement)value).ValueKind.ToString()){
+								case "String":
+								   value = value.ToString();
+								   this.dictionary[keyname] = value;
+								   break;
+							   case "Array":
+								   if (((JsonElement)value).GetArrayLength() != 0)
+								   {
+									   this.dictionary[keyname] = new TemplateData(value, this);
+								   }
+								   break;
+							   default:
+								   string oops = "oops";
+								   break;
+
+							
+							}
+                       }
+					   else
+					   {
+						   this.dictionary[keyname] = value;
+					   }
+				   }
+				);
 			}
-			asList() : TemplateData {
-				if (this.type == 'list'){
-					// already a list, so just clone it
-					return new TemplateData(this);
-				}
-				return new TemplateData([JSON.parse(this.toJson())]);
+			if (parent != null)
+			{
+				this.parent = parent;
 			}
-			toJson(indentLevel? : number) : string {
-				let result : string = '';
-				let bComma = false;
-				if (indentLevel == null){
-					indentLevel = 0;
-					TemplateData.foundObjects = [];
+		}
+		public List<string> getKeys()
+		{
+			return this.dictionary.Keys.ToList<string>();
+		}
+		public object getValue(string key)
+		{
+			string[] keySplit = key.Split('.');
+			object value = null;
+			if (this.dictionary.ContainsKey(keySplit[0]))
+			{
+				value = this.dictionary[keySplit[0]];
+			}
+			else if (keySplit[0] == "A")
+			{
+				value = this.parent != null ? this.parent : this;
+			}
+			if (keySplit.Length == 1 || value == null) 
+{
+				return value;
+			}
+			if (value is TemplateData)
+			{
+				return ((TemplateData)value).getValue(string.Join(".", keySplit.Skip(1).ToArray<string>()));
+			}
+			return value;
+		}
+		public void IterateList(Action<TemplateData> fn)
+		{
+			type = "dictionary"; // temporarily change iteration to a dictionary
+		foreach (TemplateData item in list)
+			{
+				dictionary = item.dictionary;
+				fn(this);
+			}
+			type = "list"; // revert back to being a list
+			dictionary = new Dictionary<string, object>();
+		}
+		public long Count()
+		{
+			return this.list.Count();
+		}
+
+
+		public TemplateData asList()
+		{
+			if (this.type == "list")
+			{
+				// already a list, so just clone it 
+				return new TemplateData(this);
+			}
+			Dictionary<string, object> dict = JsonSerializer.Deserialize<Dictionary<string, object>>(this.toJson());
+			List<object> list = new List<object>();
+			list.Add(dict);
+			return new TemplateData(list);
+		}
+		public string toJson(int? indentLevel = null)
+		{
+			string result = "";
+			bool bComma = false;
+			if (indentLevel == null)
+			{
+				indentLevel = 0;
+				foundObjects = new List<object>();
+			}
+			foundObjects.Add(this);
+			if (this.type == "list")
+			{
+				result += "[\n";
+				this.list.ForEach(dict =>
+				{
+					result = Regex.Replace(result + ((bComma ? "," : this.indent(indentLevel + 1)) + dict.toJson(indentLevel + 1)), @"\n\s *\n ", "\n");
+					bComma = true;
+				});
+				result += ("\n" + this.indent(indentLevel) + "]");
+			} else
+			{
+				List<string> keys = this.dictionary.Keys.ToList<string>();
+				if (keys.Count == 1 && keys[0] == "_")
+				{
+					result += ("\n" + this.indent(indentLevel) + "\"" + Regex.Replace((this.dictionary[keys[0]].ToString()), @"[""]", "\\\"") + "\"");
 				}
-				TemplateData.foundObjects.push(this);
-				if (this.type == 'list'){
-					result += '[\n';
-					this.list.forEach((dict) =>{
-						result = (result + ((bComma ? ',' : this.indent(indentLevel + 1)) + dict.toJson(indentLevel + 1))).replace(/\n\s*\n/,'\n');
+				else
+				{
+					result += "{\n";
+					keys.ForEach(keyname =>
+					{
+						object value = this.dictionary[keyname];
+						result += (this.indent(indentLevel + 1) + (bComma ? "," : "") + "\"" + keyname + "\": ");
+						if (value is TemplateData)
+						{
+							if (!TemplateData.foundObjects.Contains(value))
+							{
+								result += ((TemplateData)value).toJson(indentLevel + 1);
+							}
+						}
+						else if (value == null)
+						{
+							result += "null";
+						}
+						else if (value is string)
+						{
+							value = Regex.Replace(Regex.Replace((string)value,@"\n ", "\\n"),@"\r ", "\\r");
+							result += ("\"" + Regex.Replace(Regex.Replace((string)value, @"\\", "\\"), @"""","\\\"") + @"""");
+						}
+						else
+						{
+							result += value.ToString();
+						}
+						result += '\n';
 						bComma = true;
 					});
-					result += ('\n' + this.indent(indentLevel) + ']');
-				} else {
-					let keys = Object.keys(this.dictionary);
-					if (keys.length == 1 && keys[0] == '_'){
-						result += ('\n' + this.indent(indentLevel) + '"' + this.dictionary[keys[0]].replace(/["]/g,"\\\"") + '"');
-					} else {
-						result += '{\n';
-						keys.forEach((keyname) => {
-							let value : any = this.dictionary[keyname];
-							result += (this.indent(indentLevel + 1) + (bComma ? ',' : '') + '"' + keyname + '": ');
-							if (value instanceof TemplateData){
-								if (!TemplateData.foundObjects.includes(value)){
-									result += (<TemplateData>value).toJson(indentLevel + 1);
-								}
-							} else if (value == null) {
-								result += 'null';
-							} else if (typeof value == 'string') {
-								value = value.replace(/\n/g,'\\n').replace(/\r/g,'\\r');
-								result += ('"' + value.replace(/\\/g,'\\').replace(/"/g,'\\"') + '"');
-							} else {
-								result += value.toString();
-							}
-							result += '\n';
-							bComma = true;
-						});
-						result += (this.indent(indentLevel) + '}');
-					}
+					result += (this.indent(indentLevel) + '}');
 				}
-				return result;
 			}
-			add(name : string, value : any){
-				this.dictionary[name] = value;
+			return result;
+		}
+		private string indent(int? indentLevel)
+		{
+			string result = "";
+			for (int i = 0; i < indentLevel; i++)
+			{
+				result += " ";
 			}
-			private indent(indentLevel : number) : string {
-				let result : string = '';
-				for (let i = 0; i < indentLevel; i++){
-					result += '   ';
-				}
-				return result;
-			}
-
-        */
+			return result;
+		}
+		public void add(string name, object value)
+		{
+			this.dictionary[name] = value;
+		}
 	}
 }
