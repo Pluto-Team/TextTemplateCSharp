@@ -230,7 +230,7 @@ namespace TextTemplate
 				result += " ";
 			}
 			return result;
-		}
+		} 
 		public void add(string name, object value)
 		{
 			this.dictionary[name] = value;
