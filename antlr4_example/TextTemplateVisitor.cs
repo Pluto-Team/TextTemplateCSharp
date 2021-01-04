@@ -29,7 +29,7 @@ namespace TextTemplate
             annotations.Add("bulletStyles", null);
             annotations.Add("bulletMode", "implicit");
         }
-        // The CSharp ANTLR runtime does not allow the AggregateResult to be overridden. This method emulates VisitChildren and aggregates the results 
+        // The CSharp ANTLR runtime does not allow the AggregateResult to be overridden.  This method emulates VisitChildren and aggregates the results 
         private List<object> VisitChildrenAggregated(ParserRuleContext ctx)
         {
             List<object> result = new List<object>();
@@ -91,9 +91,9 @@ namespace TextTemplate
         }
         public override object VisitIdentifier([NotNull] TextTemplateParser.IdentifierContext ctx)
         {
-            return VisitldentifierWithParserRuleContext(ctx);
+            return VisitidentifierWithParserRuleContext(ctx);
         }
-        private object VisitldentifierWithParserRuleContext(ParserRuleContext ctx)
+        private object VisitidentifierWithParserRuleContext(ParserRuleContext ctx)
         {
             string key = ctx.GetText();
             /* 
@@ -108,7 +108,7 @@ namespace TextTemplate
             object value = null;
             if (key == "@")
             {
-                //return new TemplateData(JSON.stringify(this.annotations), this.context); 
+                ///return new TemplateData(JSON.stringify(this.annotations), this.context); 
             }
             else if (key.StartsWith("@.")) {
                 /*
@@ -141,10 +141,9 @@ namespace TextTemplate
             }
             if (value == null)
             {
-                Debug.Write("Missing value for" + key);
-                string missingValue = ""; // this.annotations.missingValue ? this.annotations.missingValue.replace(/\{key\}/g, key) : null;
+                Debug.Write("Missing value for " + key);
+                string missingValue = ""; ///this.annotations.missingValue ? this.annotations.missingValue.replace(/\{key\}/g, key) : null;
                 return new TypedData("missing", missingValue: missingValue, key: key);
-
             } /* else if (this.annotations.dateTest != null && this.annotations.dateTest.test(key)){
                 value = {type: 'date', moment: moment(value), string: value, format: this.annotations['dateFormat']};
                 if (!value.moment.isValid()){
@@ -254,7 +253,7 @@ namespace TextTemplate
                     }
                     if (ctx.children.Count > 1 && ctx.children[0].ChildCount > 0 && ctx.children[0].GetChild(0) is TextTemplateParser.MethodInvokedContext)
                     {
-                        // there is a method invocation on a context that was created here. We need to rerun the methodes) 
+                        // there is a method invocation on a context that was created here.  We need to rerun the method(s) 
                         IList<IParseTree> invocations = ctx.children.Skip(1).ToList<IParseTree>();
                         this.context = (TemplateData)this.invokeMethods(null, invocations); // a null valueContext implies this.context 
                     }
@@ -329,7 +328,7 @@ namespace TextTemplate
                         string method = (string)child.GetChild(0).Accept(this);
                         if (method == null)
                         {
-                            ///this.syntaxError('Invalid method syntax') child); 
+                            ///this.syntaxError('Invalid method syntax', child); 
                             return null; // bad syntax; don't proceed 
                         }
                         if (method.StartsWith("@"))
@@ -337,9 +336,9 @@ namespace TextTemplate
                             /* 
                             let args : any = child.children[1];
                             if (false && method == '@Include'){
-                                this.callMethod(method, oldAnnotations, args); // let include modify the annotations that will be restored
+                                this.callMethod(method, oldAnnotations, args is ParserRuleContext ? (ParserRuleContext)args : null); // let include modify the annotations that will be restored
                             } else {
-                                this.callMethod(method, this.annotations, args); // modify the current annotations so that existing annotations are inherited
+                                this.callMethod(method, this.annotations, args is ParserRuleContext ? (ParserRuleContext)args : null); // modify the current annotations so that existing annotations are inherited
                             }
                             */
                         }
@@ -347,7 +346,7 @@ namespace TextTemplate
                 }
                 if (this.context != null && this.context.type == "list")
                 {
-                    // for non-annotations and under special circumstances) depending on how it was parsed) we'll obtain a single value rather than a list 
+                    // for non-annotations and under special circumstances, depending on how it was parsed, we'll obtain a single value rather than a list 
                     bool bAggregatedResult = valueContext is TextTemplateParser.InvokedTemplateSpecContext; // only aggregate for this specific context 
                     if (bAggregatedResult)
                     {
@@ -360,7 +359,7 @@ namespace TextTemplate
                                 {
                                     if (!bTargetIsTemplate)
                                     {
-                                        ///this.syntaxError( '@ methods can only be applied to subtemplates') child); 
+                                        ///this.syntaxError('@ methods can only be applied to subtemplates', child); 
                                     }
                                 }
                                 else
@@ -398,7 +397,7 @@ namespace TextTemplate
                 string method = (string)child.GetChild(0).Accept(this);
                 if (method == null)
                 {
-                    ///this.syntaxError('Invalid method syntax'} child); 
+                    ///this.syntaxError('Invalid method syntax', child); 
                 }
                 else
                 {
@@ -429,11 +428,11 @@ namespace TextTemplate
         public override object VisitApostropheLiteral([NotNull] TextTemplateParser.ApostropheLiteralContext ctx)
         {
             string value = ctx.GetText();
-            return this.decodeApostrophe(value.Substring(1, value.Length - 2));
+            return decodeApostrophe(value.Substring(1, value.Length - 2));
         }
         /*
         visitRegex = function(ctx) {
-            let value = ctx.getText();
+            let value = ctx.GetText();
             let expression = value.substring(1, value.lastIndexOf('/'));
             let modifier = value.substr(value.lastIndexOf('/') + 1);
             try{
@@ -456,15 +455,15 @@ namespace TextTemplate
             return [methodName, methodArgs];
         };
         visitQuotedArgument = function(ctx) {
-            let value = ctx.getText();
+            let value = ctx.GetText();
             return this.decodeQuote(value.substr(1, value.length - 2),ctx);
         };
         visitApostrophedArgument = function(ctx) {
-            let value = ctx.getText();
+            let value = ctx.GetText();
             return this.decodeApostrophe(value.substr(1, value.length - 2));
         };
         visitTextedArgument = function(ctx) {
-            return ctx.getText().trim();
+            return ctx.GetText().trim();
         };
         visitBracedThinArrow = function(ctx) {
             let oldMissingValue = this.annotations.missingValue;
@@ -504,11 +503,11 @@ namespace TextTemplate
         }
         public override object VisitIdentifierCondition([NotNull] TextTemplateParser.IdentifierConditionContext ctx)
         {
-            return this.VisitldentifierWithParserRuleContext(ctx);
+            return this.VisitIdentifierWithParserRuleContext(ctx);
         }
         /*
         visitLogicalOperator = function(ctx) {
-            let operator : string = ctx.children[1].getText() 
+            let operator : string = ctx.children[1].GetText() 
             let leftCondition : boolean = ctx.children[0].accept(this);
             if (!leftCondition && operator == '&'){
                 return false;
@@ -528,7 +527,7 @@ namespace TextTemplate
             return this.visitApostrophedArgument(ctx);
         }
         visitDigits = function(ctx){
-            return parseInt(ctx.getText());
+            return parseInt(ctx.GetText());
         }
         visitRelationalOperand = function(ctx){
             return ctx.children[0].accept(this);
@@ -536,7 +535,7 @@ namespace TextTemplate
         visitRelationalOperation = function(ctx) {
             let leftValue = ctx.children[0].accept(this);
             let rightValue = ctx.children[2].accept(this);
-            let operator = ctx.children[1].getText();
+            let operator = ctx.children[1].GetText();
             // null == null and  null != !null
             if (leftValue == null || this.valueIsMissing(leftValue)){
                 if (rightValue == null || this.valueIsMissing(rightValue) || operator == '!='){
@@ -619,7 +618,7 @@ namespace TextTemplate
         {
             if (this.context != null && this.context.type == "list")
             {
-                TypedData listObject = new TypedData("list", list: new List<object>()/*,defaultlndent: this.annotations.defaultlndent*/);
+                TypedData listObject = new TypedData("list", list: new List<object>()/*,defaultIndent: this.annotations.defaultIndent*/);
                 this.context.IterateList((TemplateData newContext) => {
                     TemplateData oldContext = context;
                     context = newContext;
@@ -684,7 +683,7 @@ namespace TextTemplate
             }
             string parserInput = "{:" + this.subtemplates[subtemplateName] + "}";
             string oldSubtemplateLevel = this.subtemplateLevel;
-            this.subtemplateLevel += ((this.subtemplateLevel != "" ? " " : "") + subtemplateName);
+            this.subtemplateLevel += ((this.subtemplateLevel != "" ? "." : "") + subtemplateName);
             TextTemplateParser.CompilationUnitContext tree = null;
             if (parsedTemplates.ContainsKey(parserInput))
             {
@@ -695,15 +694,15 @@ namespace TextTemplate
                 // cache the parsed tree and tokens 
                 tree = parseTemplate(parserInput);
                 parsedTemplates[parserInput] = tree;
-                ///parsedTokens[parserlnput] = tokensAsString(tree); 
+                ///parsedTokens[parserInput] = tokensAsString(tree); 
             }
             if (this.recursionLevel > 20)
             {
                 Debug.Write("ERROR: too many levels of recursion when invoking " + subtemplateName);
-                return "ERROR: too many levels of recursion when invoking" + subtemplateName;
+                return "ERROR: too many levels of recursion when invoking " + subtemplateName;
             }
             ++this.recursionLevel;
-            string oldlnput = this.input;
+            string oldInput = this.input;
             /*
             let oldSubtemplates = {};
             let localSubtemplateNames = [];
@@ -724,7 +723,7 @@ namespace TextTemplate
             --this.recursionLevel;
             // restore (pop) old states 
             ///this.subtemplates = oldSubtemplates; 
-            this.input = oldlnput;
+            this.input = oldInput;
             this.subtemplateLevel = oldSubtemplateLevel;
             /*
             if (typeof result == 'string'){
@@ -735,13 +734,12 @@ namespace TextTemplate
         }
         /*
         // TODO: this should go away because subtemplates are now preprocessed
-
         visitSubtemplateSpecs = function(ctx) {
             if (ctx.children){
                 ctx.children.forEach((child)=>{
                     if (child.children[0].children[1].constructor.name == 'NamedSubtemplateContext'){
-                        let templateString : string = child.children[0].children[3].getText();
-                        this.subtemplates[child.children[0].children[1].getText()] = templateString;
+                        let templateString : string = child.children[0].children[3].GetText();
+                        this.subtemplates[child.children[0].children[1].GetText()] = templateString;
                     }
                 });
             }
@@ -796,7 +794,7 @@ namespace TextTemplate
             return this.visitChildren(ctx)[0];
         };
         visitBullet = function(ctx) {
-            let text = ctx.getText();
+            let text = ctx.GetText();
             if (!text.includes('\n')){
                 let previousTokenArray = ctx.parser.getTokenStream().getTokens(ctx.getSourceInterval().start - 1, ctx.getSourceInterval().start);
                 if (previousTokenArray != null){ // check for first token
@@ -830,7 +828,7 @@ namespace TextTemplate
             {
                 for (int i = 0; i < args.ChildCount; i++)
                 {
-                    if ((method == "Group8y" || method == "OrderBy") && i == 0)
+                    if ((method == "GroupBy" || method == "OrderBy") && i == 0)
                     {
                         // defer evaluation of the first parameter of a Group 
                         argValues.Add(null); // placeholder 
@@ -853,7 +851,7 @@ namespace TextTemplate
                 }
             }
             RuleContext parentCtx = args != null ? args.Parent : null;
-            if (!(value is string) && (//I !(value != null && type of value 
+            if (!(value is string) && (/// !(value != null && type of value == "object" && value.type == "date") && (
             method == "ToUpper"
             || method == "ToLower"
             || method == "Trim"
@@ -874,7 +872,7 @@ namespace TextTemplate
                 TemplateData oldContext = this.context;
                 // TODO: consider a clean context as a child of the context 
                 TemplateData newContext = new TemplateData(new Dictionary<string, object>(), this.context);
-                // add the current value as $0 and each argument as $l ... n 
+                // add the current value as $0 and each argument as $1...n 
                 newContext.add("$0", value);
                 for (int i = 0; i < argValues.Count; i++)
                 {
@@ -887,7 +885,6 @@ namespace TextTemplate
                     {
                         if ((((TypedData)argObject).type) == "date")
                         {
-
                             ///newContext.add("$" + (i + 1), argObject.string); // provide the original string value 
                         }
                         else if ((((TypedData)argObject).type) == "list")
@@ -913,7 +910,7 @@ namespace TextTemplate
                     if (result != null)
                     { // needed to protect against bad syntax 
                         value = result;
-                        ///value = result[l]; // ignore the brackets when calling a bracketed template 
+                        ///value = result[1]; // ignore the brackets when calling a bracketed template 
                     }
                 }
                 this.context = oldContext;
@@ -923,7 +920,7 @@ namespace TextTemplate
                 || method == "Where"
                 || method == "ToJson"
                 || method == "Matches"
-                || method == "If Missing"
+                || method == "IfMissing"
             ))
             {
                 value = value; // null with most methods returns null 
@@ -939,11 +936,11 @@ namespace TextTemplate
             }
             else if (args.ChildCount > 0 && (method == "ToUpper" || method == "ToLower" || method == "Trim"))
             {
-                error = "ERROR: invalid argument for" + method + ": " + args.GetText();
+                error = "ERROR: invalid argument for " + method + ": " + args.GetText();
             }
             else if (argValues.Count != 2 && (method == "Replace"))
             {
-                error = "ERROR: wrong number of arguments for " + method + "  " + args.GetText();
+                error = "ERROR: wrong number of arguments for " + method + ": " + args.GetText();
             }
             else if (args.ChildCount == 0 && (
                 method == "GreaterThan"
@@ -957,12 +954,32 @@ namespace TextTemplate
                 || method == "IndexOf"
                 || method == "EncodeFor"
             ))
+		{
+			error = "ERROR: missing argument for " + method + ": " + args.GetText();
+		}
+		else if ((args.ChildCount > 1 && (
+		  method == "@DateTest"
+		  || method == "@Falsy"
+		  || method == "@DefaultIndent"
+		))
+            {
+                error = "ERROR: invalid arguments for " + method + ": " + args.GetText();
+            }
+		else if ((args.ChildCount > 1 || argValues[0] == null && (
+		  method == "GreaterThan"
+		  || method == "LessThan"
+		  || method == "StartsWith"
+		  || method == "EndsWith"
+		  || method == "Contains"
+		  || method == "IndexOf"
+		  || method == "EncodeFor"
+		  || method == "@EncodeDataFor"
             {
                 error = "ERROR: invalid arguments for " + method + ": " + args.GetText();
             }
             else if (args.ChildCount < 3 && method == "Case")
             {
-                error = "ERROR: too few arguments for" + method + ": " + args.GetText();
+                error = "ERROR: too few arguments for " + method + ": " + args.GetText();
             }
             else if (value == null || (value is TemplateData || (value is TypedData && ((TypedData)value).type == "argument") && (
                 method == ""
@@ -988,27 +1005,28 @@ namespace TextTemplate
                     case "ToUpper":
                         value = this.valueAsString(value).ToUpper();
                         break;
+			
                     case "ToLower":
                         value = this.valueAsString(value).ToLower();
                         break;
+			
                     case "EncodeFor":
                         switch ((string)argValues[0])
                         {
                             case "html":
-                                ///value 
+                                ///value = this.encodeHTML(value);
                                 break;
                             case "xml":
-                                ///value 
+                                ///value = this.encodeXML(value);
                                 break;
                             case "uri":
                                 ///value = encodeURIComponent(value); 
                                 break;
                             default:
-                                ///this. syntaxError( "Parameter must be 'xml', 'html' or 'uri''', args) ; 
+                                ///this.syntaxError("Parameter must be 'xml', 'html' or 'uri'", args); 
                                 break;
                         }
                         break;
-
                     /*
                         case "GreaterThan":
                         case "LessThan":
@@ -1526,70 +1544,6 @@ namespace TextTemplate
             }
             return value;
         }
-        /*
-            // this routine is no longer used and has old class names in it
-                getTemplateWithoutComments = function(ctx){
-                    let templateParts = [];
-                    let ctxName = ctx.constructor.name.replace(/Context$/, '');
-                    switch (ctxName) {
-                        case "NamedSubtemplate":
-                        case "MethodInvoked":
-                        case "Identifier":
-                        case "BeginningBulletHolder":
-                        case "BulletHolder":
-                        case "Text":
-                            templateParts.push(ctx.getText());
-                            break;
-                        case "TemplateContextToken":
-                            templateParts.push('{');
-                            for (let i : number = 1; i < ctx.children.length - 1; i++){
-                                if (!ctx.children[i].children){
-                                    templateParts.push(':');
-                                } else {
-                                    templateParts.push(this.getTemplateWithoutComments(ctx.children[i]))
-                                }
-                            }
-                            templateParts.push('}');
-                            break;
-                        case "TemplateToken":
-                            templateParts.push('{');
-                            for (let i : number = 1; i < ctx.children.length - 1; i++){
-                                templateParts.push(this.getTemplateWithoutComments(ctx.children[i]));
-                            }
-                            templateParts.push('}');
-                            break;
-                        //case "OptionallyInvoked":
-                        //	templateParts.push('{' + ctx.getText() + '}');
-                        //	break;
-                        case "BracketedTemplateSpec":
-                            templateParts.push('[');
-                            for (let i : number = 1; i < ctx.children.length - 1; i++){
-                                if (ctx.children[i].constructor.name != 'TerminalNodeImpl'){ // skip over unparsed (probably comments)
-                                    templateParts.push(this.getTemplateWithoutComments(ctx.children[i]))
-                                }
-                            }
-                            templateParts.push(']');
-                            break;
-                        case "BracedArrowTemplateSpec":
-                        case "BracedArrow":
-                            templateParts.push(this.getTemplateWithoutComments(ctx.children[0]));
-                            templateParts.push(ctx.children[1].getText());
-                            if (ctx.children.length > 2){
-                                templateParts.push(this.getTemplateWithoutComments(ctx.children[2]));
-                            }
-                            break;
-
-                        default:
-                            ctx.children.forEach(child=>{
-                                if (child.getChildCount() > 0){
-                                    templateParts.push(this.getTemplateWithoutComments(child));
-                                }
-                            });
-                            break;
-                    }
-                    return templateParts.join('');
-                }
-        */
         public string getParseTree(ParserRuleContext ctx, string indent = null)
         {
             const string indentBlanks = "   ";
@@ -1711,20 +1665,20 @@ namespace TextTemplate
                 int level = 0;
                 bool bSorting = true;
                 /* 
-                while (bSorting){ 
-                let lowest = null; 
-                foreach (var key in keys) { 
-                if (bullets[key].level == null && (lowest== null || bullets[keyJ.length < bullets[lowestJ.length){ 
-                lowest = key; 
+                	while (bSorting){ 
+                		let lowest = null; 
+		                foreach (var key in keys) { 
+                			if (bullets[key].level == null && (lowest == null || bullets[key].length < bullets[lowest].length)){ 
+                				lowest = key; 
+                			} 
+                		)); 
+                		if (lowest != null){ 
+                			bullets[lowest].level = level++; 
+                		} else { 
+                			bSorting = false; 
+                		} 
                 } 
-                ); 
-                if (lowest != null){ 
-                bullets[lowest].level = level++; 
-                } else { 
-                bSorting = false; 
-                } 
-                } 
-                         */
+                */
                 List<object> composed = new List<object>();
                 composed.Add(string.Join("\n", output.lines));
                 output = new ComposeOutput(lines: new List<string>(), skipping: false, mode: 1, bullets: bullets);
@@ -1732,7 +1686,6 @@ namespace TextTemplate
             }
             return string.Join("\n", output.lines);
         }
-
         private string doCompose(List<object> parts, ComposeOutput output, string indent)
         {
             List<string> lines = output.lines;
@@ -1770,7 +1723,7 @@ namespace TextTemplate
                 }
                 if (item == null)
                 {
-                    Debug.Write("Skipping line containing" + lines[lines.Count - 1] + " because of a null in the composition input");
+                    Debug.Write("Skipping line containing " + lines[lines.Count - 1] + " because of a null in the composition input");
                     lines[lines.Count - 1] = ""; // skipping this line 
                     output.skipping = true;
                 } else if (this.isScalar(item))
@@ -1835,7 +1788,7 @@ namespace TextTemplate
                             nextLine = compose(partsList, 0); // note that send an array to compose insures a string 
                             if (nextLine is string)
                             {
-                                bNextLineStartsWithBullet = new Regex(@"\s*\x01{.}.*", RegexOptions.Singleline).IsMatch((string)nextLine);
+                                bNextLineStartsWithBullet = new Regex(@"^\s*\x01{.}.*", RegexOptions.Singleline).IsMatch((string)nextLine);
                             }
                         }
 
@@ -1843,10 +1796,10 @@ namespace TextTemplate
                     if (indent != null && indent.Contains("\x01{.}"))
                     {
                         // This is an unbulleted list under a bullet, so we need to turn each list item into an indent object with an indented bullet 
-                        bool blncompleteBullet = new Regex(@"^[ \t]*\x01\{\.\}[ \t]*$").IsMatch(lines[lines.Count - 1]);
+                        bool bIncompleteBullet = new Regex(@"^[ \t]*\x01\{\.\}[ \t]*$").IsMatch(lines[lines.Count - 1]);
                         //.test(); 
-                        string defaultlndent = ((TypedData)item).defaultIndent == null ? " " : ((TypedData)item).defaultIndent;
-                        string newBullet = Regex.Replace(indent, @"([ \t]*\x01\{\.\})", defaultlndent + "$1");
+                        string defaultIndent = ((TypedData)item).defaultIndent == null ? "   " : ((TypedData)item).defaultIndent;
+                        string newBullet = Regex.Replace(indent, @"([ \t]*\x01\{\.\})", defaultIndent + "$1");
                         for (int i = 0; i < ((TypedData)item).list.Count; i++)
                         {
                             object itemResult = ((TypedData)item).list[i];
@@ -1854,13 +1807,13 @@ namespace TextTemplate
                             // let the next level handle an array of items that aren't lists or indents 
                             if (!bNextLineStartsWithBullet)
                             {
-                                indentObject = new TypedData("bullet", parts: itemResult, defaultIndent: defaultlndent, bullet: blncompleteBullet ? indent : newBullet);
+                                indentObject = new TypedData("bullet", parts: itemResult, defaultIndent: defaultIndent, bullet: bIncompleteBullet ? indent : newBullet);
                             }
                             if (i == 0)
                             {
                                 List<object> doComposeParm = new List<object>();
                                 doComposeParm.Add(indentObject);
-                                if (blncompleteBullet)
+                                if (bIncompleteBullet)
                                 {
                                     if (itemResult is List<object>)
                                     {
@@ -1901,14 +1854,14 @@ namespace TextTemplate
                         // create a list and indent it under the current line, if it isn't empty 
                         bool bEmptyLine = lines[lines.Count - 1] == "";
                         string lastIndent = Regex.Replace(lines[lines.Count - 1], @"^([ \t]*).*$", "$1");
-                        string defaultIndent = ((TypedData)item).defaultIndent == null ? " " : ((TypedData)item).defaultIndent;
+                        string defaultIndent = ((TypedData)item).defaultIndent == null ? "   " : ((TypedData)item).defaultIndent;
                         string newIndent = (indent == null ? defaultIndent + lastIndent : defaultIndent + indent);
                         string nextIndent = "";
                         object nextLine = null;
                         if (((TypedData)item).list.Count > 0)
                         {
                             nextLine = this.compose(((TypedData)item).list[0], 0); // preview the next line to see its indent is already sufficient 
-                            nextIndent = nextLine is string ? Regex.Replace((string)nextLine, @"A([ \tJ*).*", "$1", RegexOptions.Singleline) : "";
+                            nextIndent = nextLine is string ? Regex.Replace((string)nextLine, @"^([ \t]*).*", "$1", RegexOptions.Singleline) : "";
                         }
                         if (nextIndent.Length > lastIndent.Length)
                         {
@@ -2006,15 +1959,14 @@ namespace TextTemplate
                     case "date":
                         /* 
                         if (!value.moment.isValid()){ 
-                        return value. string; // put out the original value 
+                        	return value.string; // put out the original value 
                         } else if (value.format == null){ 
-                        return value.moment.toDate().toLocaleDateString(undefined. { year: "numeric". month: "numeric". day: 
-                        "numeric" }); // put out local format 
+                        	return value.moment.toDate().toLocaleDateString(undefined, { year: "numeric". month: "numeric". day: "numeric" }); // put out local format 
                         } else { 
-                        return value.moment.format(value.format); 
+                        	return value.moment.format(value.format); 
                         } 
                         */
-                        return "<<<DATE>>>"; //I temporarily 
+                        return "<<<DATE>>>"; /// temporarily 
                         break;
                 }
             }
@@ -2053,9 +2005,9 @@ namespace TextTemplate
                         if (new Regex(@"^[ \t]*\x01\{\.\}").IsMatch(text))
                         {
                             // there is a bullet in the text 
-                            string indent = Regex.Replace(text, @"^([ \t]*).*$", "$l");
+                            string indent = Regex.Replace(text, @"^([ \t]*).*$", "$1");
                             output.bulletIndent = this.bulletIndent == null ? null : this.bulletIndent.clone();
-                            object bulletObject = output.bullets[Regex.Replace(text, @"^([ \t]*\x01\{\.\}).*$", "$l")];
+                            object bulletObject = output.bullets[Regex.Replace(text, @"^([ \t]*\x01\{\.\}).*$", "$1")];
                             if (bulletObject == null)
                             {
                                 // this could be a strange case where the bullet is on the first line of a new indented subtemplate, so pick the shortest bullet
@@ -2077,10 +2029,10 @@ namespace TextTemplate
                             text = Regex.Replace(text, @"[ \t]*\x01\{\.\}", indent + (this.bulletIndent != null ? this.bulletIndent.getBullet() : ""));
                         }
                         else if (this.bulletIndent != null && new Regex(@"\S").IsMatch(text) && false)
-                        {/// && this.annotations.bulletMode == "implicit") {
+                        { /// && this.annotations.bulletMode == "implicit") {
                             // there is a non-bulleted line in the output; see if it should reset bulleting levels because it is less indented then the bullet(s)
-                            string nextLinelndent = Regex.Replace(text, @"^([ \t]*).*$", "$l"); // TODO: Should this be an option? 
-                            while (this.bulletIndent != null && this.bulletIndent.indent.Length > nextLinelndent.Length)
+                            string nextLineIndent = Regex.Replace(text, @"^([ \t]*).*$", "$1"); // TODO: Should this be an option? 
+                            while (this.bulletIndent != null && this.bulletIndent.indent.Length > nextLineIndent.Length)
                             {
                                 this.bulletIndent = this.bulletIndent.parent;
 
@@ -2326,15 +2278,15 @@ namespace TextTemplate
                             if (parts.Count > 6 && parts[5].name == "RBRACKET" && parts[6].name == "RBRACE")
                             {
                                 string text = input.Substring(parts[4].start, parts[6].start - parts[4].start);
-                                Dictionary<string, Subtemplate> subSubtemplates = null;// subtemplates in the subtemplate 
+                                Dictionary<string, Subtemplate> subSubtemplates = null; // subtemplates in the subtemplate 
                                 if (text.Contains("\nSubtemplates:"))
                                 {
                                     string subProcessedInput;
                                     processSubtemplates(input.Substring(parts[4].start + 1, parts[5].start), parts[4].line + lineOffset - 1, out subProcessedInput, out subSubtemplates);// process the text between the brackets 
+                                    // reconstruct the text without the subtemplates				    
                                     text = "[" + subProcessedInput + input.Substring(parts[5].start, parts[6].start - parts[5].start);
                                 }
                                 subtemplates["#" + parts[2].text] = new Subtemplate(text: text, line: parts[0].line, column: parts[4].column, endLine: parts[6].line, endColumn: parts[6].column, subtemplates: subSubtemplates);
-
                             } else {
                                 newInput += "\nERROR extracting subtemplate \"" + parts[2].text + "\"" + " missing right bracket or brace";
                                 Debug.Write("ERROR extracting subtemplate \"" + parts[2].text + "\"" + " missing right bracket or brace");
@@ -2403,30 +2355,6 @@ namespace TextTemplate
             }
             return tokenArray;
         }
-
-
-
-    /*
-    function getTokensWithSymbols(input : string){
-    const chars = new InputStream(input);
-    const lexer = new TextTemplateLexer(chars);
-    lexer.strictMode = false;
-    const tokens = new CommonTokenStream(lexer);
-    tokens.fill();
-    let treeTokens : CommonToken[] = tokens.tokens;
-    let symbolicNames : string[] = new TextTemplateParser(null).symbolicNames
-    let tokenArray = [];
-    if (input.length == 0){
-        return input;
-    }
-    for (let e of treeTokens){
-        if (e.type != -1) {
-            tokenArray.push({name: symbolicNames[e.type], text: input.substring(e.start, e.stop + 1), start: e.start, stop: e.stop, column: e.column, line: e.line});
-        }
-    }
-    return tokenArray;
-    }
-    */
         public class Subtemplate
         {
             public string text;
@@ -2463,7 +2391,22 @@ namespace TextTemplate
                 this.line = line;
             }
         }
-        private int findMatching(string tokenName, List<TokenRepresentation> tokenArray, int iTokenln)
+        public class ComposeOutput
+        {
+            public List<string> lines;
+            public bool skipping;
+            public int mode;
+            public Dictionary<string, object> bullets;
+            public BulletIndent bulletIndent;
+            public ComposeOutput(List<string> lines = null, bool skipping = false, int mode = 0, Dictionary<string, object> bullets = null)
+            {
+                this.lines = lines;
+                this.skipping = skipping;
+                this.mode = mode;
+                this.bullets = bullets;
+            }
+        }
+        private int findMatching(string tokenName, List<TokenRepresentation> tokenArray, int iTokenIn)
         {
             string match = "";
             switch (tokenName)
@@ -2484,7 +2427,7 @@ namespace TextTemplate
                     match = "QUOTE";
                     break;
             }
-            for (int iToken = iTokenln + 1; iToken < tokenArray.Count; iToken++)
+            for (int iToken = iTokenIn + 1; iToken < tokenArray.Count; iToken++)
             {
                 TokenRepresentation tokenObject = tokenArray[iToken];
                 tokenName = tokenObject.name;
@@ -2498,21 +2441,6 @@ namespace TextTemplate
                 }
             }
             return 0;
-        }
-        public class ComposeOutput
-        {
-            public List<string> lines;
-            public bool skipping;
-            public int mode;
-            public Dictionary<string, object> bullets;
-            public BulletIndent bulletIndent;
-            public ComposeOutput(List<string> lines = null, bool skipping = false, int mode = 0, Dictionary<string, object> bullets = null)
-            {
-                this.lines = lines;
-                this.skipping = skipping;
-                this.mode = mode;
-                this.bullets = bullets;
-            }
         }
         public string interpret(string input, Dictionary<string, string> options = null)
         {
@@ -2538,7 +2466,7 @@ namespace TextTemplate
             ///var visitor = new TextTemplateVisitor();
             /*
             // clone to allow interpreter errors to be undone
-            errors.orEach((error) => {
+            errors.forEach((error)=>{
                 visitor.errors.push(error);
             });
             */
@@ -2658,9 +2586,6 @@ namespace TextTemplate
             }
             return tree;
         }
-
-
-
         /*
         function getTokens(input: String) : Token[] {
             return createLexer(input).getAllTokens()
@@ -2696,7 +2621,6 @@ namespace TextTemplate
 
             return tree.toStringTree(parser.ruleNames);
         }
-
         function getSubtemplatePositions(positions : any[], processed, lineOffset : number, level : string){
             if (processed.subtemplates != null){
                 Object.keys(processed.subtemplates).forEach((key)=>{
