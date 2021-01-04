@@ -908,7 +908,7 @@ namespace TextTemplate
                 this.context = newContext;
                 if (!bTemplate)
                 {
-                    value = this.VisitNamedSubtemplateExt(args is RuleContext ? (RuleContext)args.Parent : null, method); // using subtemplate as a meth 
+                    value = this.VisitNamedSubtemplateExt(args is RuleContext ? ((RuleContext)args).Parent : null, method); // using subtemplate as a meth 
                 }
                 else
                 {
