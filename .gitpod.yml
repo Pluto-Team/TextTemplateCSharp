@@ -1,7 +1,5 @@
 image: gitpod/workspace-dotnet
 
 tasks:
-  - before: /workspace/TextTemplateCSharp/.cd.sh
-
-  - init: dotnet build
-    command: dotnet run
+  - init: dotnet build --project /workspace/TextTemplateCSharp/antlr4_example
+    command: dotnet run --project /workspace/TextTemplateCSharp/antlr4_example
