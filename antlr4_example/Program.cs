@@ -39,8 +39,8 @@ Subtemplates:
 				TextTemplateParser.CompilationUnitContext compilationUnitContext = textTemplateParser.compilationUnit();
 				TextTemplateVisitor visitor = new TextTemplateVisitor();
 				string result = visitor.interpret(input);
-				Debug.Write(result);
-				Console.Write(result);
+				Debug.Write(result + "\n");
+				Console.Write(result + "\n");
 			//object interpolated = (string)visitor.Visit(compilationUnitContext);
 			//Debug.Write(interpolated);
 			//Console.Write(interpolated);
