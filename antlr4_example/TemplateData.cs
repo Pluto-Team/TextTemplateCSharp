@@ -14,7 +14,7 @@ namespace TextTemplate
 		private List<TemplateData> list = new List<TemplateData>();
 		private TemplateData parent;
 		public string type;
-		static List<object> foundObjects; // used to protect against ToJspn loops
+		static List<object> foundObjects; // used to protect against ToJson loops
 		public TemplateData(object jsonData, TemplateData parent = null)
 		{
 			object json;
@@ -30,11 +30,11 @@ namespace TextTemplate
 					json = JsonSerializer.Deserialize<dynamic>("{\"_\": \"" + ((string)jsonData).Replace("\"", "\\\"") + "\"}");
 				}
 				/*} else if (Array.isArray(jsonData)) { 
-				   this. type = 'list'; 
+					this. type = 'list'; 
 					let array: [] = jsonData; 
 					array.forEach((item) => { 
 					this.list.push(new TemplateData(item, this)); 
-					} ) ; 
+					}) ; 
 					this.parent = parent; 
 					return; 
 					*/
@@ -90,16 +90,13 @@ namespace TextTemplate
 							   default:
 								   string oops = "oops";
 								   break;
-
-							
 							}
                        }
 					   else
 					   {
 						   this.dictionary[keyname] = value;
 					   }
-				   }
-				);
+				   });
 			}
 			if (parent != null)
 			{
@@ -118,7 +115,7 @@ namespace TextTemplate
 			{
 				value = this.dictionary[keySplit[0]];
 			}
-			else if (keySplit[0] == "A")
+			else if (keySplit[0] == "^")
 			{
 				value = this.parent != null ? this.parent : this;
 			}
@@ -148,7 +145,6 @@ namespace TextTemplate
 			return this.list.Count();
 		}
 
-
 		public TemplateData asList()
 		{
 			if (this.type == "list")
@@ -176,7 +172,7 @@ namespace TextTemplate
 				result += "[\n";
 				this.list.ForEach(dict =>
 				{
-					result = Regex.Replace(result + ((bComma ? "," : this.indent(indentLevel + 1)) + dict.toJson(indentLevel + 1)), @"\n\s *\n ", "\n");
+					result = Regex.Replace(result + ((bComma ? "," : this.indent(indentLevel + 1)) + dict.toJson(indentLevel + 1)), @"\n\s*\n", "\n");
 					bComma = true;
 				});
 				result += ("\n" + this.indent(indentLevel) + "]");
@@ -207,8 +203,8 @@ namespace TextTemplate
 						}
 						else if (value is string)
 						{
-							value = Regex.Replace(Regex.Replace((string)value,@"\n ", "\\n"),@"\r ", "\\r");
-							result += ("\"" + Regex.Replace(Regex.Replace((string)value, @"\\", "\\"), @"""","\\\"") + @"""");
+							value = Regex.Replace(Regex.Replace(value.ToString(),@"\n ", "\\n"),@"\r ", "\\r");
+							result += ("\"" + Regex.Replace(Regex.Replace(value.ToString(), @"\\", "\\"), @" ""","\\\"") + "\"");
 						}
 						else
 						{
@@ -227,7 +223,7 @@ namespace TextTemplate
 			string result = "";
 			for (int i = 0; i < indentLevel; i++)
 			{
-				result += " ";
+				result += "   ";
 			}
 			return result;
 		} 
