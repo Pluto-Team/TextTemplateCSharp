@@ -91,9 +91,9 @@ namespace TextTemplate
         }
         public override object VisitIdentifier([NotNull] TextTemplateParser.IdentifierContext ctx)
         {
-            return VisitidentifierWithParserRuleContext(ctx);
+            return VisitIdentifierWithParserRuleContext(ctx);
         }
-        private object VisitidentifierWithParserRuleContext(ParserRuleContext ctx)
+        private object VisitIdentifierWithParserRuleContext(ParserRuleContext ctx)
         {
             string key = ctx.GetText();
             /* 
@@ -957,7 +957,7 @@ namespace TextTemplate
 		{
 			error = "ERROR: missing argument for " + method + ": " + args.GetText();
 		}
-		else if ((args.ChildCount > 1 && (
+		else if (args.ChildCount > 1 && (
 		  method == "@DateTest"
 		  || method == "@Falsy"
 		  || method == "@DefaultIndent"
@@ -965,7 +965,7 @@ namespace TextTemplate
             {
                 error = "ERROR: invalid arguments for " + method + ": " + args.GetText();
             }
-		else if ((args.ChildCount > 1 || argValues[0] == null && (
+		else if ((args.ChildCount > 1 || argValues[0] == null) && (
 		  method == "GreaterThan"
 		  || method == "LessThan"
 		  || method == "StartsWith"
@@ -974,6 +974,7 @@ namespace TextTemplate
 		  || method == "IndexOf"
 		  || method == "EncodeFor"
 		  || method == "@EncodeDataFor"
+          ))
             {
                 error = "ERROR: invalid arguments for " + method + ": " + args.GetText();
             }
