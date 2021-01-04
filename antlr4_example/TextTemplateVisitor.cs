@@ -66,7 +66,12 @@ namespace TextTemplate
                 {
                     foreach (object res in (List<object>)result)
                     {
-                        results.Add((string)res);
+                        object resValue = res;
+			if (resValue is TypedData && ((TypedData)resValue).type == "missing")
+			{
+				resValue = ((TypedData)resValue).missingValue;
+			}
+			results.Add((string)resValue);
                     }
                 }
                 else
@@ -142,7 +147,7 @@ namespace TextTemplate
             if (value == null)
             {
                 Debug.Write("Missing value for " + key);
-                string missingValue = ""; ///this.annotations.missingValue ? this.annotations.missingValue.replace(/\{key\}/g, key) : null;
+                string missingValue = null; ///this.annotations.missingValue ? this.annotations.missingValue.replace(/\{key\}/g, key) : null;
                 return new TypedData("missing", missingValue: missingValue, key: key);
             } /* else if (this.annotations.dateTest != null && this.annotations.dateTest.test(key)){
                 value = {type: 'date', moment: moment(value), string: value, format: this.annotations['dateFormat']};
@@ -336,7 +341,7 @@ namespace TextTemplate
                             /* 
                             let args : any = child.children[1];
                             if (false && method == '@Include'){
-                                this.callMethod(method, oldAnnotations, args is ParserRuleContext ? (ParserRuleContext)args : null); // let include modify the annotations that will be restored
+                                this.callMethod(method, oldAnnotations, args); // let include modify the annotations that will be restored
                             } else {
                                 this.callMethod(method, this.annotations, args is ParserRuleContext ? (ParserRuleContext)args : null); // modify the current annotations so that existing annotations are inherited
                             }
@@ -648,7 +653,7 @@ namespace TextTemplate
         {
             return VisitNamedSubtemplateExt(ctx);
         }
-        private object VisitNamedSubtemplateExt(ParserRuleContext ctx, string name = null, bool blnclude = false) {
+        private object VisitNamedSubtemplateExt(RuleContext ctx, string name = null, bool blnclude = false) {
             string subtemplateName = name != null ? name : ctx.GetText();
             if (this.subtemplates[subtemplateName] != null) {
                 /*
@@ -811,7 +816,7 @@ namespace TextTemplate
             return this.visitBullet(ctx);
         };
         */
-        public object callMethod(string method, object value, ParserRuleContext args)
+        public object callMethod(string method, object value, object args)
         {
             object externalMethod = null;///Externals.getMethod(method); 
             if (externalMethod != null)
@@ -819,14 +824,16 @@ namespace TextTemplate
                 ///return externalMethod(value, args, this); 
             }
             List<object> argValues = new List<object>();
+	    string argsGetText = args is RuleContext ? ((RuleContext)args).GetText() : ((TerminalNodeImpl)args).GetText();
+	    int argsChildCount = args is RuleContext ? ((RuleContext)args).ChildCount : ((TerminalNodeImpl)args).ChildCount;
             if (args is TextTemplateParser.ConditionContext)
             {
                 // the argument is a boolean 
-                argValues[0] = args.Accept(this);
+                argValues[0] = ((TextTemplateParser.ConditionContext)args).Accept(this);
             }
             else if (args is TextTemplateParser.ArgumentsContext)
             {
-                for (int i = 0; i < args.ChildCount; i++)
+                for (int i = 0; i < argsChildCount; i++)
                 {
                     if ((method == "GroupBy" || method == "OrderBy") && i == 0)
                     {
@@ -835,7 +842,7 @@ namespace TextTemplate
                     }
                     else
                     {
-                        object arg = args.children[i].Accept(this);
+                        object arg = ((RuleContext)args).GetChild(i).Accept(this);
                         if (arg != null)
                         { // remove result of commas 
                             if (arg is Regex)
@@ -850,7 +857,7 @@ namespace TextTemplate
                     }
                 }
             }
-            RuleContext parentCtx = args != null ? args.Parent : null;
+            RuleContext parentCtx = args is RuleContext ? ((RuleContext)args).Parent : null;
             if (!(value is string) && (/// !(value != null && type of value == "object" && value.type == "date") && (
             method == "ToUpper"
             || method == "ToLower"
@@ -876,7 +883,7 @@ namespace TextTemplate
                 newContext.add("$0", value);
                 for (int i = 0; i < argValues.Count; i++)
                 {
-                    object argObject = args.children[i].Accept(this);
+                    object argObject = ((RuleContext)args).GetChild(i).Accept(this);
                     if (argObject is List<object> && ((List<object>)argObject).Count == 1)
                     {
                         argObject = ((List<object>)argObject)[0];
@@ -901,7 +908,7 @@ namespace TextTemplate
                 this.context = newContext;
                 if (!bTemplate)
                 {
-                    value = this.VisitNamedSubtemplateExt(args is ParserRuleContext ? (ParserRuleContext)args.Parent : null, method); // using subtemplate as a meth 
+                    value = this.VisitNamedSubtemplateExt(args is RuleContext ? (RuleContext)args.Parent : null, method); // using subtemplate as a meth 
                 }
                 else
                 {
@@ -934,15 +941,15 @@ namespace TextTemplate
             {
                 error = "ERROR: invalid method, " + method + " for this data: " + parentCtx.GetText();
             }
-            else if (args.ChildCount > 0 && (method == "ToUpper" || method == "ToLower" || method == "Trim"))
+            else if (argsChildCount > 0 && (method == "ToUpper" || method == "ToLower" || method == "Trim"))
             {
-                error = "ERROR: invalid argument for " + method + ": " + args.GetText();
+                error = "ERROR: invalid argument for " + method + ": " + argsGetText;
             }
             else if (argValues.Count != 2 && (method == "Replace"))
             {
-                error = "ERROR: wrong number of arguments for " + method + ": " + args.GetText();
+                error = "ERROR: wrong number of arguments for " + method + ": " + argsGetText;
             }
-            else if (args.ChildCount == 0 && (
+            else if (argsChildCount == 0 && (
                 method == "GreaterThan"
                 || method == "LessThan"
                 || method == "Align"
@@ -955,17 +962,17 @@ namespace TextTemplate
                 || method == "EncodeFor"
             ))
 		{
-			error = "ERROR: missing argument for " + method + ": " + args.GetText();
+			error = "ERROR: missing argument for " + method + ": " + argsGetText;
 		}
-		else if (args.ChildCount > 1 && (
+		else if (argsChildCount > 1 && (
 		  method == "@DateTest"
 		  || method == "@Falsy"
 		  || method == "@DefaultIndent"
 		))
             {
-                error = "ERROR: invalid arguments for " + method + ": " + args.GetText();
+                error = "ERROR: invalid arguments for " + method + ": " + argsGetText;
             }
-		else if ((args.ChildCount > 1 || argValues[0] == null) && (
+		else if ((argsChildCount > 1 || argValues[0] == null) && (
 		  method == "GreaterThan"
 		  || method == "LessThan"
 		  || method == "StartsWith"
@@ -976,11 +983,11 @@ namespace TextTemplate
 		  || method == "@EncodeDataFor"
           ))
             {
-                error = "ERROR: invalid arguments for " + method + ": " + args.GetText();
+                error = "ERROR: invalid arguments for " + method + ": " + argsGetText;
             }
-            else if (args.ChildCount < 3 && method == "Case")
+            else if (argsChildCount < 3 && method == "Case")
             {
-                error = "ERROR: too few arguments for " + method + ": " + args.GetText();
+                error = "ERROR: too few arguments for " + method + ": " + argsGetText;
             }
             else if (value == null || (value is TemplateData || (value is TypedData && ((TypedData)value).type == "argument") && (
                 method == ""
