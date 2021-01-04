@@ -409,7 +409,7 @@ namespace TextTemplate
                     if (!method.StartsWith("@"))
                     { // annotations have already been processed 
                         object args = child.GetChild(1); // passing the argument tree to CallMethod 
-                        value = this.callMethod(method, this.compose(value, 0), args is ParserRuleContext ? (ParserRuleContext)args : null);
+                        value = this.callMethod(method, this.compose(value, 0), args);
                     }
                 }
             }
