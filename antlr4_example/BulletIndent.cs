@@ -16,19 +16,19 @@ namespace TextTemplate
 		public string lastBullet = "";
 		public List<string> bulletStyles = null;
 		// the next is used to indicate that we've returned from a level where we could have honored a style 
-		// initializer(e.g., "I:IV") so don't do that the next time we visit levels above this one 
-		public int? stylelnitializerLevel;
-		public BulletIndent(string indent = null, BulletIndent currentBulletlndent = null, int? level = null, List<string> bulletStyles = null)
+		// initializer (e.g., "I:IV") so don't do that the next time we visit levels above this one 
+		public int? styleInitializerLevel;
+		public BulletIndent(string indent = null, BulletIndent currentBulletIndent = null, int? level = null, List<string> bulletStyles = null)
 		{
 			if (indent == null)
 			{
-				// indicates an empty Bulletlndent 
+				// indicates an empty BulletIndent 
 				return;
 			}
 			this.bulletStyles = bulletStyles;
-			string currentIndent = currentBulletlndent == null ? "" : currentBulletlndent.indent;
+			string currentIndent = currentBulletIndent == null ? "" : currentBulletIndent.indent;
 			this.indent = indent;
-			if (currentBulletlndent == null)
+			if (currentBulletIndent == null)
 			{
 				// establish the first level 
 				this.level = level == null ? 0 : level;
@@ -38,15 +38,15 @@ namespace TextTemplate
 			else if (this.level == level || indent == currentIndent)
 			{
 				// staying on the same level 
-				this.level = currentBulletlndent.level;
-				this.index = currentBulletlndent.index + 1;
-				this.parent = currentBulletlndent.parent;
-				this.stylelnitializerLevel = currentBulletlndent.stylelnitializerLevel;
+				this.level = currentBulletIndent.level;
+				this.index = currentBulletIndent.index + 1;
+				this.parent = currentBulletIndent.parent;
+				this.styleInitializerLevel = currentBulletIndent.styleInitializerLevel;
 			}
 			else
 			{
 				// search for the same level 
-				BulletIndent matchingLevel = currentBulletlndent.parent; // used to find a previous level 
+				BulletIndent matchingLevel = currentBulletIndent.parent; // used to find a previous level 
 				while (matchingLevel != null)
 				{
 					if ((level != null && matchingLevel.level == level) || indent == matchingLevel.indent)
@@ -55,38 +55,37 @@ namespace TextTemplate
 						this.level = matchingLevel.level;
 						this.index = matchingLevel.index + 1;
 						this.parent = matchingLevel.parent;
-						this.stylelnitializerLevel = this.level; // don't honor style initializers above this level 
+						this.styleInitializerLevel = this.level; // don't honor style initializers above this level 
 						break;
 					}
 					else
 					{
 						matchingLevel = matchingLevel.parent;
 					}
-					if (matchingLevel == null)
-					{
-						// create a new level 
-						this.level = level == null ? (currentBulletlndent.level + 1) : level;
-						this.index = 0;
-						this.parent = currentBulletlndent;
-						this.stylelnitializerLevel = currentBulletlndent.stylelnitializerLevel;
-					}
+				}
+				if (matchingLevel == null)
+				{
+					// create a new level 
+					this.level = level == null ? (currentBulletIndent.level + 1) : level;
+					this.index = 0;
+					this.parent = currentBulletIndent;
+					this.styleInitializerLevel = currentBulletIndent.styleInitializerLevel;
 				}
 			}
 		}
 		public BulletIndent clone()
 		{
-			// clone a bulletlndent that reflects the state 
-			BulletIndent cloneBulletlndent = new BulletIndent();
-			cloneBulletlndent.level = this.level;
-			cloneBulletlndent.index = this.index;
-			cloneBulletlndent.indent = this.indent;
-			cloneBulletlndent.parent = this.parent;
-			cloneBulletlndent.lastBullet = this.lastBullet;
-			cloneBulletlndent.bulletStyles = this.bulletStyles;
-			cloneBulletlndent.stylelnitializerLevel = this.stylelnitializerLevel;
-			return cloneBulletlndent;
+			// clone a BulletIndent that reflects the state 
+			BulletIndent cloneBulletIndent = new BulletIndent();
+			cloneBulletIndent.level = this.level;
+			cloneBulletIndent.index = this.index;
+			cloneBulletIndent.indent = this.indent;
+			cloneBulletIndent.parent = this.parent;
+			cloneBulletIndent.lastBullet = this.lastBullet;
+			cloneBulletIndent.bulletStyles = this.bulletStyles;
+			cloneBulletIndent.styleInitializerLevel = this.styleInitializerLevel;
+			return cloneBulletIndent;
 		}
-
 		public string getBullet()
 		{
 			string bullet;
@@ -100,7 +99,7 @@ namespace TextTemplate
 				string bulletStyleText = bulletStyles[(int)(this.level < bulletStyles.Count ? this.level : bulletStyles.Count - 1)];
 				// support multiple numbers at one level by creating an array of styles that contain 0 or 1 number/letter/roman 
 				string concatenatedBullet = "";
-				string[] styleArray = Regex.Replace(bulletStyleText, @"(.*?(i\:[ivxldcm]+|i|I\:[IVXLDCM]+|I|1\:\d+|1|a\:[a-z]+|a|A\:[A-Z]+|A).\S*?)", "$1").Split('\x02');
+				string[] styleArray = Regex.Replace(bulletStyleText, @"+(.*?(i\:[ivxldcm]+|i|I\:[IVXLDCM]+|I|1\:\d+|1|a\:[a-z]+|a|A\:[A-Z]+|A).\S*?)", "$1").Split('\x02');
 				BulletIndent currentBulletLevel = this;
 				for (int i = styleArray.Length - 1; i >= 0 && currentBulletLevel != null; i--)
 				{
@@ -117,7 +116,7 @@ namespace TextTemplate
 					// TODO: support styles like 'I.a.1.i', '1.1.1.1' or even '1:10.1.1.1' 
 					// TODO: consider allowing \: and \\ for legitimate: 
 					// support styles like 'i', 'i:iv', 'I', 'I:LV', '1', '1:13', 'a', 'a:d', 'A', 'A:AF' 
-					if (new Regex(@"A.* (i\:[ivxldcm] +1 i 1 I\:[IVXLDCM]+//I1\:\d+11Ia\:[a-z]+laIA\:[A-Z]+IA).*$", RegexOptions.Singleline).IsMatch(bulletStyle))
+					if (new Regex(@"^.* (i\:[ivxldcm] +| i | I\:[IVXLDCM]+|I|1\:\d+|1|a\:[a-z]+|a|A\:[A-Z]+|A).*$", RegexOptions.Singleline).IsMatch(bulletStyle))
 					{
 						prefix = Regex.Replace(bulletStyle, @"^(.*?)(i\:[ivxldcm]+|i|I\:[IVXLDCM]+|I|1\:\d+|1|a\:[a-z]+|a|A\:[A-Z]+|A).*$", "$1");
 						postfix = Regex.Replace(bulletStyle, @"^.*?(i\:[ivxldcm]+|i|I\:[IVXLDCM]+|I|1\:\d+|1|a\:[a-z]+|a|A\:[A-Z]+|A)(.*)$", "$2"); 
@@ -125,7 +124,7 @@ namespace TextTemplate
 						bulletType = bulletStyle.Substring(0, 1);
 						if (bulletStyle.Contains(":"))
 						{
-							if (this.stylelnitializerLevel != null && currentBulletLevel.level > this.stylelnitializerLevel)
+							if (this.styleInitializerLevel != null && currentBulletLevel.level > this.styleInitializerLevel)
 							{
 								// ignore the style initializer because we've already popped back to a level above this 
 								bulletStyle = bulletType;
@@ -158,14 +157,14 @@ namespace TextTemplate
 							case "I":
 								bullet = this.numberToRoman(currentBulletLevel.index + (bulletStyle != "I" ? this.romanToNumber(bulletStyle) : 1));
 								break;
+
 							case "i":
-								bullet = this.numberToRoman(currentBulletLevel.index + (bulletStyle != "i" ?  this.romanToNumber(bulletStyle) : 1)).ToLower(); 
+								bullet = this.numberToRoman(currentBulletLevel.index + (bulletStyle != "i" ? this.romanToNumber(bulletStyle) : 1)).ToLower(); 
 								break;
 
 							case "1":
 								bullet = (currentBulletLevel.index + (bulletStyle != "1" ? Int32.Parse(bulletStyle) : 1)).ToString();
 								break;
-
 
 							case "A":
 							case "a":
@@ -175,6 +174,10 @@ namespace TextTemplate
 									bullet = bullet.ToLower();
 								}
 								break;
+						}
+						if (padding.Length > 0 && bullet.Length < (padding.Length + 1))
+						{
+							prefix = padding.Substring(0, padding.Length - bullet.Length + 1) + prefix;
 						}
 						bullet = prefix + bullet + postfix;
 						currentBulletLevel = currentBulletLevel.parent;
