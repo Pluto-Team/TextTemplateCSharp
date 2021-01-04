@@ -14,7 +14,7 @@ namespace TestTextTemplates
 			//try
 			//{
 				string input;
-				//input = @"{'{""hello"":""world""}':[{""hello""}:{hello}]}";
+				//input = @"{'{""hello"":""world""}':[{""hello""} {hello}]}";
 				input = @"// data context:
 {'{""firstName"": ""Robert"", ""lastName"": ""Smith"", ""pets"":[
 {""type"":""dog"", ""name"": ""Toto""}
