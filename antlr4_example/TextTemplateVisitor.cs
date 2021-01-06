@@ -24,14 +24,20 @@ namespace TextTemplate
         string subtemplateLevel = ""; // keeps track of subtemplates within subtemplates
         Dictionary<string, object> annotations = new Dictionary<string, object>();
         private Dictionary<string, TextTemplateParser.CompilationUnitContext> parsedTemplates = new Dictionary<string, TextTemplateParser.CompilationUnitContext>();
+        Func<string, string> urlCallback = null;
         public TextTemplateVisitor()
         {
             annotations.Add("bulletStyles", null);
             annotations.Add("bulletMode", "implicit");
         }
         // The CSharp ANTLR runtime does not allow the AggregateResult to be overridden.  This method emulates VisitChildren and aggregates the results 
-        private List<object> VisitChildrenAggregated(ParserRuleContext ctx)
+        private object VisitChildrenAggregated(ParserRuleContext ctx)
         {
+            if (ctx.ChildCount == 0)
+            {
+                return "";
+            }
+
             List<object> result = new List<object>();
             foreach (object child in ctx.children)
             {
@@ -182,7 +188,7 @@ namespace TextTemplate
         }
         public override object VisitTemplateContents([NotNull] TextTemplateParser.TemplateContentsContext ctx)
         {
-            return JoinChildrenResult(ctx.children);
+            return VisitChildrenAggregated(ctx);
         }
         public override object VisitTemplateContextToken([NotNull] TextTemplateParser.TemplateContextTokenContext ctx)
         {
@@ -226,6 +232,11 @@ namespace TextTemplate
                     this.errors = oldErrors;
                     try {
                         if (((string)context).ToLower().StartsWith("http") || ((string)context).StartsWith("/")) {
+                            if (this.urlCallback != null)
+                            {
+                                string data = urlCallback((string)context);
+                                this.context = new TemplateData(data, this.context);
+                            }
                             /*
                             if (urls[context] && urls[context].data){
                                 if (urls[context].error){
@@ -242,7 +253,7 @@ namespace TextTemplate
                             }
                             */
                         }
-                        else if (((string)context).Substring(0, 1) == "[" || ((string)context).Substring(0, 1) == "{") {
+                        else if (((string)context).Length > 0 && (((string)context).Substring(0, 1) == "[" || ((string)context).Substring(0, 1) == "{")){
                             this.context = new TemplateData(context, this.context);
                         } else {
                             // the string isn't JSON and is probably an error, so just output it
@@ -289,12 +300,8 @@ namespace TextTemplate
             {
                 return ""; // no data
             }
-            List<object> result = VisitChildrenAggregated(ctx);
-            if (result.Count == 1)
-            {
-                return result[0];
-            }
-            return result;
+            return VisitChildrenAggregated(ctx);
+
         }
         public override object VisitMethod([NotNull] TextTemplateParser.MethodContext ctx)
         {
@@ -310,13 +317,12 @@ namespace TextTemplate
         }
         private object invokeMethods(ParserRuleContext valueContext, IList<IParseTree> invocations)
         {
-            object value = null;
-            /*
-            let value : any = undefined;
-            let oldAnnotations : any = {};
-            Object.keys(this.annotations).forEach((key)=>{
-                oldAnnotations[key] = this.annotations[key];
-            });
+            object value = null; 
+            Dictionary<string, object> oldAnnotations = new Dictionary<string, object>(); 
+            annotations.Keys.ToList().ForEach((key) => { 
+                oldAnnotations[key.ToString()] = this.annotations[key.ToString()]; 
+            }); 
+            /* 
             let oldSubtemplates = []; // only needed if this spec contains subtemplates
             // clone the current subtemplates in case methods add new ones that overwrite more global ones
             for (let key in this.subtemplates){
@@ -338,15 +344,17 @@ namespace TextTemplate
                         }
                         if (method.StartsWith("@"))
                         {
-                            /* 
-                            let args : any = child.children[1];
-                            if (false && method == '@Include'){
+                            object args = child.GetChild(1);
+                            if (false && method == "@Include")
+                            {
                                 this.callMethod(method, oldAnnotations, args); // let include modify the annotations that will be restored
-                            } else {
-                                this.callMethod(method, this.annotations, args is ParserRuleContext ? (ParserRuleContext)args : null); // modify the current annotations so that existing annotations are inherited
                             }
-                            */
+                            else
+                            {
+                                this.callMethod(method, this.annotations, args); // modify the current annotations so that existing annotations are inherited
+                          }
                         }
+
                     }
                 }
                 if (this.context != null && this.context.type == "list")
@@ -470,20 +478,24 @@ namespace TextTemplate
         visitTextedArgument = function(ctx) {
             return ctx.GetText().trim();
         };
-        visitBracedThinArrow = function(ctx) {
-            let oldMissingValue = this.annotations.missingValue;
-            delete this.annotations.missingValue; // predicates need to see the absense of a value
-            let result : any = ctx.children[0].accept(this);
-            this.annotations.missingValue = oldMissingValue;
-            if (typeof result == 'boolean' && result && ctx.children[2].children){ // protect against invalid syntax
-                return this.visitChildren(ctx.children[2].children[0]); // true
+        */
+        public override object VisitBracedThinArrow([NotNull] TextTemplateParser.BracedThinArrowContext ctx)
+        {
+            string oldMissingValue = (string)this.annotations["missingValue"];
+            this.annotations.Remove("missingValue"); // predicates need to see the absense of a value
+            object result = ctx.children[0].Accept(this);
+            this.annotations["missingValue"] = oldMissingValue;
+            if (result is bool && ((bool)result) == true && ctx.children[2].ChildCount > 0)
+            {
+                // protect against invalid syntax
+                return this.VisitChildren((RuleContext)ctx.children[2].GetChild(0)); // true
             }
-            if (typeof result == 'string' && result.startsWith('ERROR:')){
+            if (result is string && ((string)result).StartsWith("ERROR:"))
+            {
                 return result;
             }
-            return ''; // false means ignore this token
-        };
-        */
+            return " "; // false means ignore this token
+        }
         public override object VisitBracedArrow([NotNull] TextTemplateParser.BracedArrowContext ctx)
         {
             ///let oldMissingValue = this.annotations.missingValue; 
@@ -773,8 +785,7 @@ namespace TextTemplate
         {
             object value = this.VisitChildren(ctx);
             // testing to see if the identifier has a value
-            if (value != null) { // temporary 
-                ///if (!this.valueIsMissing(value) && value != ''){
+            if (!valueIsMissing(value) && value.ToString() != ""){
                 ///    if (this.annotations.falsy != null && this.annotations.falsy.test(value)){
                 ///        return false;
                 ///    }
@@ -798,24 +809,58 @@ namespace TextTemplate
         visitBraceThinArrow = function(ctx) {
             return this.visitChildren(ctx)[0];
         };
-        visitBullet = function(ctx) {
-            let text = ctx.GetText();
-            if (!text.includes('\n')){
-                let previousTokenArray = ctx.parser.getTokenStream().getTokens(ctx.getSourceInterval().start - 1, ctx.getSourceInterval().start);
-                if (previousTokenArray != null){ // check for first token
-                    let previousTokenText = previousTokenArray	[0].text;
-                    if (previousTokenText.startsWith('[') && previousTokenText.includes('\n') && !previousTokenText.includes('`')){  // don't correct if continue character (`) is pressent
-                        // correct for bracket removing white space if followed by a bullet
-                        text = previousTokenText.replace(/^[^\n]+(.*)/, '$1') + text;
+        */
+        public override object VisitBullet([NotNull] TextTemplateParser.BulletContext ctx)
+        {
+            return VisitBulletEx(ctx);
+
+        }
+        private object VisitBulletEx(ParserRuleContext ctx) {
+            string text = ctx.GetText();
+            string previousTokenText = GetPreviousTokenText(ctx);
+            if (previousTokenText != null)
+            {
+                if (previousTokenText.StartsWith("[") && previousTokenText.Contains("\n") && !previousTokenText.Contains("`"))
+                { // don't correct if continue character (`) is pressent 
+                    // correct for bracket removing white space if followed by a bullet
+                    text = Regex.Replace(previousTokenText, @"^[^\n]+(.*)", "$1") + text;
+                }
+            }
+            string defaultIndent = this.annotations.ContainsKey("defaultIndent") ? (string)this.annotations["defaultIndent"] : null;
+            return new TypedData("bullet", bullet: text.Replace("{", "\x01{"), defaultIndent: defaultIndent, parts: new List<object>());
+        }
+        private string GetPreviousTokenText(RuleContext ctx)
+        {
+            if (ctx.Parent == null)
+            {
+                return null;
+            }
+            if (ctx.Parent.GetChild(0)!= ctx)
+            {
+                for (int iChild = 1; iChild < ctx.Parent.ChildCount; iChild++)
+                {
+                    if (ctx.Parent.GetChild(iChild) == ctx)
+                    {
+                        if (ctx.Parent.GetChild(iChild - 1) is TerminalNodeImpl)
+                        {
+                            return ctx.Parent.GetChild(iChild - 1).GetText();
+                        }
+                        RuleContext foundCtx = (RuleContext)ctx.Parent.GetChild(iChild - 1);
+                        while (foundCtx.ChildCount > 1)
+                        {
+                            foundCtx = (RuleContext)foundCtx.GetChild(foundCtx.ChildCount - 1); // last child
+                        }
+                        return foundCtx.GetText();
                     }
                 }
             }
-            return {type:'bullet', bullet: text.replace('{','\x01{'), defaultIndent: this.annotations.defaultIndent, parts: []};
-        };
-        visitBeginningBullet = function(ctx) {
-            return this.visitBullet(ctx);
-        };
-        */
+            return GetPreviousTokenText(ctx.Parent);
+        }
+        public override object VisitBeginningBullet([NotNull] TextTemplateParser.BeginningBulletContext ctx)
+        {
+            return VisitBulletEx(ctx);
+        }
+        
         public object callMethod(string method, object value, object args)
         {
             object externalMethod = null;///Externals.getMethod(method); 
@@ -972,7 +1017,7 @@ namespace TextTemplate
             {
                 error = "ERROR: invalid arguments for " + method + ": " + argsGetText;
             }
-		else if ((argsChildCount > 1 || argValues[0] == null) && (
+		else if ((argsChildCount > 1 || (argsChildCount == 1 && argValues[0] == null)) && (
 		  method == "GreaterThan"
 		  || method == "LessThan"
 		  || method == "StartsWith"
@@ -1380,13 +1425,15 @@ namespace TextTemplate
                                     value = new TemplateData(result, this.context);
                                 }
                                 break;
+                            */
 
-                            case 'IfMissing':
-                                if (!value || (typeof value == 'object' && value != null && value.type =='missing')) {
+                            case "IfMissing":
+                                if (value == null || (value is TypedData && ((TypedData)value).type == "missing")) {
                                     value = argValues[0];
                                 }
                                 break;
 
+                            /*
                             case 'ToJson':
                                 if (value == null){
                                     value = 'null';
@@ -1442,11 +1489,11 @@ namespace TextTemplate
                                 this.visitNamedSubtemplate(args, templateName, true); // run the named subtemplate, preserving any loaded subtemplates
                                 this.annotations = oldAnnotations;
                                 break;
-
-                            case '@MissingValue':
-                                value['missingValue'] = argValues[0];
+                            */
+                            case "@MissingValue":
+                                ((Dictionary<string, object>)value)["missingValue"] = argValues[0];
                                 break;
-
+                            /*
                             case '@ValueFunction':
                                 if (argValues.length == 0){
                                     delete value['valueFunction'];
@@ -1712,7 +1759,7 @@ namespace TextTemplate
                                 List<object> bulletParts = new List<object>();
                                 foreach (object part in parts)
                                 {
-                                    bulletParts.Add(part);
+                                    //////////bulletParts.Add(part);
                                 }
                                 item = new TypedData("bullet", bullet: ((TypedData)item).bullet, parts: bulletParts, defaultIndent: ((TypedData)item).defaultIndent);
                                 for (iParts++; iParts < parts.Count; iParts++)
@@ -1799,126 +1846,126 @@ namespace TextTemplate
                                 bNextLineStartsWithBullet = new Regex(@"^\s*\x01{.}.*", RegexOptions.Singleline).IsMatch((string)nextLine);
                             }
                         }
-
-                    }
-                    if (indent != null && indent.Contains("\x01{.}"))
-                    {
-                        // This is an unbulleted list under a bullet, so we need to turn each list item into an indent object with an indented bullet 
-                        bool bIncompleteBullet = new Regex(@"^[ \t]*\x01\{\.\}[ \t]*$").IsMatch(lines[lines.Count - 1]);
-                        //.test(); 
-                        string defaultIndent = ((TypedData)item).defaultIndent == null ? "   " : ((TypedData)item).defaultIndent;
-                        string newBullet = Regex.Replace(indent, @"([ \t]*\x01\{\.\})", defaultIndent + "$1");
-                        for (int i = 0; i < ((TypedData)item).list.Count; i++)
+                        if (indent != null && indent.Contains("\x01{.}"))
                         {
-                            object itemResult = ((TypedData)item).list[i];
-                            object indentObject = itemResult;
-                            // let the next level handle an array of items that aren't lists or indents 
-                            if (!bNextLineStartsWithBullet)
+                            // This is an unbulleted list under a bullet, so we need to turn each list item into an indent object with an indented bullet 
+                            bool bIncompleteBullet = new Regex(@"^[ \t]*\x01\{\.\}[ \t]*$").IsMatch(lines[lines.Count - 1]);
+                            //.test(); 
+                            string defaultIndent = ((TypedData)item).defaultIndent == null ? "   " : ((TypedData)item).defaultIndent;
+                            string newBullet = Regex.Replace(indent, @"([ \t]*\x01\{\.\})", defaultIndent + "$1");
+                            for (int i = 0; i < ((TypedData)item).list.Count; i++)
                             {
-                                indentObject = new TypedData("bullet", parts: itemResult, defaultIndent: defaultIndent, bullet: bIncompleteBullet ? indent : newBullet);
-                            }
-                            if (i == 0)
-                            {
-                                List<object> doComposeParm = new List<object>();
-                                doComposeParm.Add(indentObject);
-                                if (bIncompleteBullet)
+                                object itemResult = ((TypedData)item).list[i];
+                                object indentObject = itemResult;
+                                // let the next level handle an array of items that aren't lists or indents 
+                                if (!bNextLineStartsWithBullet)
                                 {
-                                    if (itemResult is List<object>)
+                                    indentObject = new TypedData("bullet", parts: itemResult, defaultIndent: defaultIndent, bullet: bIncompleteBullet ? indent : newBullet);
+                                }
+                                if (i == 0)
+                                {
+                                    List<object> doComposeParm = new List<object>();
+                                    doComposeParm.Add(indentObject);
+                                    if (bIncompleteBullet)
                                     {
-                                        doComposeParm = (List<object>)itemResult;
+                                        if (itemResult is List<object>)
+                                        {
+                                            doComposeParm = (List<object>)itemResult;
+                                        }
+                                        else
+                                        {
+                                            doComposeParm = new List<object>();
+                                            doComposeParm.Add(itemResult);
+                                        }
                                     }
-                                    else
+                                    this.doCompose(doComposeParm, output, indent);
+                                }
+                                else
+                                {
+                                    object firstItem = indentObject;
+                                    string firstItemIndent = "";
+                                    if (firstItem is List<object>)
                                     {
-                                        doComposeParm = new List<object>();
-                                        doComposeParm.Add(itemResult);
+                                        firstItem = ((List<object>)firstItem)[0];
                                     }
+                                    if (firstItem is TypedData && ((TypedData)firstItem).type == "bullet")
+                                    {
+                                        firstItemIndent = ((TypedData)firstItem).bullet;
+                                    }
+                                    if (!indent.Contains("\n") && !firstItemIndent.Contains("\n"))
+                                    {
+                                        this.addToOutput("\n", output);
+                                    }
+                                    List<object> partsList = new List<object>();
+                                    partsList.Add(indentObject);
+                                    this.doCompose(partsList, output, indent);
                                 }
-                                this.doCompose(doComposeParm, output, indent);
                             }
-                            else
+                        }
+                        else
+                        {
+                            // create a list and indent it under the current line, if it isn't empty 
+                            bool bEmptyLine = lines[lines.Count - 1] == "";
+                            string lastIndent = Regex.Replace(lines[lines.Count - 1], @"^([ \t]*).*$", "$1");
+                            string defaultIndent = ((TypedData)item).defaultIndent == null ? "   " : ((TypedData)item).defaultIndent;
+                            string newIndent = (indent == null ? defaultIndent + lastIndent : defaultIndent + indent);
+                            string nextIndent = "";
+                            nextLine = null;
+                            if (((TypedData)item).list.Count > 0)
                             {
-                                object firstItem = indentObject;
-                                string firstItemIndent = "";
-                                if (firstItem is List<object>)
-                                {
-                                    firstItem = ((List<object>)firstItem)[0];
-                                }
-                                if (firstItem is TypedData && ((TypedData)firstItem).type == "bullet")
-                                {
-                                    firstItemIndent = ((TypedData)firstItem).bullet;
-                                }
-                                if (!indent.Contains("\n") && !firstItemIndent.Contains("\n"))
-                                {
-                                    this.addToOutput("\n", output);
-                                }
-                                List<object> partsList = new List<object>();
-                                partsList.Add(indentObject);
-                                this.doCompose(partsList, output, indent);
+                                nextLine = this.compose(((TypedData)item).list[0], 0); // preview the next line to see its indent is already sufficient 
+                                nextIndent = nextLine is string ? Regex.Replace((string)nextLine, @"^([ \t]*).*", "$1", RegexOptions.Singleline) : "";
                             }
-                        }
-                    }
-                    else
-                    {
-                        // create a list and indent it under the current line, if it isn't empty 
-                        bool bEmptyLine = lines[lines.Count - 1] == "";
-                        string lastIndent = Regex.Replace(lines[lines.Count - 1], @"^([ \t]*).*$", "$1");
-                        string defaultIndent = ((TypedData)item).defaultIndent == null ? "   " : ((TypedData)item).defaultIndent;
-                        string newIndent = (indent == null ? defaultIndent + lastIndent : defaultIndent + indent);
-                        string nextIndent = "";
-                        object nextLine = null;
-                        if (((TypedData)item).list.Count > 0)
-                        {
-                            nextLine = this.compose(((TypedData)item).list[0], 0); // preview the next line to see its indent is already sufficient 
-                            nextIndent = nextLine is string ? Regex.Replace((string)nextLine, @"^([ \t]*).*", "$1", RegexOptions.Singleline) : "";
-                        }
-                        if (nextIndent.Length > lastIndent.Length)
-                        {
+                            if (nextIndent.Length > lastIndent.Length)
+                            {
 
-                            newIndent = null; // it is already indented 
-                        }
-                        bool bIncompleteIndent = lines[lines.Count - 1] == indent;
-                        if (bIncompleteIndent)
-                        {
-                            newIndent = indent;
-                        }
-                        else if (lastIndent == lines[lines.Count - 1])
-                        {
-                            // starting a new indent 
-                            newIndent = lastIndent;
-                            bIncompleteIndent = true;
-                        }
-                        bool bFirst = true;
-                        foreach (object listItemx in ((TypedData)item).list) {
-                            object listItem = listItemx;
-                            if (nextLine is string && ((string)nextLine).StartsWith("\n"))
+                                newIndent = null; // it is already indented 
+                            }
+                            bool bIncompleteIndent = lines[lines.Count - 1] == indent;
+                            if (bIncompleteIndent)
                             {
                                 newIndent = indent;
                             }
-                            if (nextLine != null && !((string)nextLine).StartsWith("\n") && !(bIncompleteIndent && bFirst) && (!bEmptyLine || !bFirst))
+                            else if (lastIndent == lines[lines.Count - 1])
                             {
-                                this.addToOutput("\n", output); // start a new line 
-                                if (newIndent != null && newIndent != "" && !bNextLineStartsWithBullet)
+                                // starting a new indent 
+                                newIndent = lastIndent;
+                                bIncompleteIndent = true;
+                            }
+                            bool bFirst = true;
+                            foreach (object listItemx in ((TypedData)item).list)
+                            {
+                                object listItem = listItemx;
+                                if (nextLine is string && ((string)nextLine).StartsWith("\n"))
                                 {
-                                    this.addToOutput(newIndent, output);
-                                    if (listItem is string)
+                                    newIndent = indent;
+                                }
+                                if (nextLine != null && !((string)nextLine).StartsWith("\n") && !(bIncompleteIndent && bFirst) && (!bEmptyLine || !bFirst))
+                                {
+                                    this.addToOutput("\n", output); // start a new line 
+                                    if (newIndent != null && newIndent != "" && !bNextLineStartsWithBullet)
                                     {
-                                        // indent the contents 
-                                        listItem = Regex.Replace((string)listItem, @"\n ", "\n" + newIndent);
+                                        this.addToOutput(newIndent, output);
+                                        if (listItem is string)
+                                        {
+                                            // indent the contents 
+                                            listItem = Regex.Replace((string)listItem, @"\n ", "\n" + newIndent);
+                                        }
                                     }
                                 }
+                                List<object> composeParts;
+                                if (listItem is List<object>)
+                                {
+                                    composeParts = (List<object>)listItem;
+                                }
+                                else
+                                {
+                                    composeParts = new List<object>();
+                                    composeParts.Add(listItem);
+                                }
+                                this.doCompose(composeParts, output, newIndent);
+                                bFirst = false;
                             }
-                            List<object> composeParts;
-                            if (listItem is List<object>)
-                            {
-                                composeParts = (List<object>)listItem;
-                            }
-                            else
-                            {
-                                composeParts = new List<object>();
-                                composeParts.Add(listItem);
-                            }
-                            this.doCompose(composeParts, output, newIndent);
-                            bFirst = false;
                         }
                     }
                 }
@@ -1982,7 +2029,7 @@ namespace TextTemplate
         }
         private bool isScalar(object value)
         {
-            if (value != null && !(value is TypedData))
+            if (value != null && !(value is TypedData || value is List<object>))
             {
                 return true;
             }
@@ -2450,8 +2497,9 @@ namespace TextTemplate
             }
             return 0;
         }
-        public string interpret(string input, Dictionary<string, string> options = null)
+        public string interpret(string input, Func<string, string> urlCallback = null, Dictionary<string, string> options = null)
         {
+            this.urlCallback = urlCallback;
             //callback({ type: 'status', status: 'parsing...'});
             ///let errors : Error[] = [];
             Dictionary<string, Subtemplate> processedSubtemplates = null;

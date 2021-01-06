@@ -20,9 +20,13 @@ namespace TextTemplate
 			object json;
 			if (jsonData is string)
 			{
-				if (((string)jsonData).StartsWith("{") || ((string)jsonData).StartsWith("["))
+				if (((string)jsonData).StartsWith("{"))
 				{
 					json = JsonSerializer.Deserialize<Dictionary<string,object>>((string)jsonData);
+				}
+				else if (((string)jsonData).StartsWith("["))
+				{
+					json = JsonSerializer.Deserialize<List<object>>((string)jsonData);
 				}
 				else
 				{
@@ -60,7 +64,15 @@ namespace TextTemplate
 			{
 				json = jsonData;
 			}
-			if (json is JsonElement && ((JsonElement)json).ValueKind.ToString() == "Array")
+			if (json is List<object>)
+			{
+				this.type = "list";
+				((List<object>)json).ForEach(item =>
+				{
+					this.list.Add(new TemplateData(item.ToString(), this));
+				}) ;
+			}
+			else if (json is JsonElement && ((JsonElement)json).ValueKind.ToString() == "Array")
 			{
 				this.type = "list";
 				((JsonElement)json).EnumerateArray().ToList().ForEach(item =>
