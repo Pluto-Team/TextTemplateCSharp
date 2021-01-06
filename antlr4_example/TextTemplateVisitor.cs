@@ -486,7 +486,7 @@ namespace TextTemplate
         */
         public override object VisitBracedArrow([NotNull] TextTemplateParser.BracedArrowContext ctx)
         {
-            object oldMissingValue = this.annotations["missingValue"]; 
+            object oldMissingValue = this.annotations.ContainsKey("missingValue") ? this.annotations["missingValue"] : null; 
             this.annotations.Remove("missingValue"); // predicates need to see the absense of a value 
             bool result = (bool)ctx.children[0].Accept(this);
             this.annotations.Add("missingValue", oldMissingValue); 
@@ -1675,13 +1675,13 @@ namespace TextTemplate
             	while (bSorting){ 
                		string lowest = null; 
 		        foreach (var key in keys) { 
-                		if (((TypedData)bullets)[key.ToString()].level == null && (lowest == null || ((TypedData)bullets)[key.ToString()].length < ((TypedData)bullets)[lowest].length))
+                		if (((TypedData)bullets[key.ToString()]).level == null && (lowest == null || ((TypedData)bullets[key.ToString()]).length < ((TypedData)bullets[lowest]).length))
 				{ 
                 			lowest = key; 
                 		} 
                 	} 
                 	if (lowest != null){ 
-                		((TypedData)bullets)[lowest].level = level++; 
+                		((TypedData)bullets[lowest]).level = level++; 
                 	} else { 
                 		bSorting = false; 
                 	} 
