@@ -1721,11 +1721,11 @@ namespace TextTemplate
                 bool bSorting = true;
             	while (bSorting){ 
                		string lowest = null; 
-		        foreach (var key in keys) { 
-                		if (((TypedData)bullets[key.ToString()]).level == null && (lowest == null || ((TypedData)bullets[key.ToString()]).length < ((TypedData)bullets[lowest]).length))
-				{ 
+		            foreach (var key in keys) { 
+                	    if (((TypedData)bullets[key.ToString()]).level == null && (lowest == null || ((TypedData)bullets[key.ToString()]).length < ((TypedData)bullets[lowest]).length))
+				        { 
                 			lowest = key; 
-                		} 
+                	    } 
                 	} 
                 	if (lowest != null){ 
                 		((TypedData)bullets[lowest]).level = level++; 
@@ -1735,7 +1735,9 @@ namespace TextTemplate
                 } 
                 List<object> composed = new List<object>();
                 composed.Add(string.Join("\n", output.lines));
-                output = new ComposeOutput(lines: new List<string>(), skipping: false, mode: 1, bullets: bullets);
+                List<string> composeOutput = new List<string>();
+                composeOutput.Add("");
+                output = new ComposeOutput(lines: composeOutput, skipping: false, mode: 1, bullets: bullets);
                 this.doCompose(composed, output, null);
             }
             return string.Join("\n", output.lines);
