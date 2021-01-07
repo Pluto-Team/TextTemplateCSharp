@@ -498,10 +498,10 @@ namespace TextTemplate
         }
         public override object VisitBracedArrow([NotNull] TextTemplateParser.BracedArrowContext ctx)
         {
-            ///let oldMissingValue = this.annotations.missingValue; 
-            ///delete this.annotations.missingValue; // predicates need to see the absense of a value 
+            object oldMissingValue = this.annotations.ContainsKey("missingValue") ? this.annotations["missingValue"] : null; 
+            this.annotations.Remove("missingValue"); // predicates need to see the absense of a value 
             bool result = (bool)ctx.children[0].Accept(this);
-            ///this.annotations.missingValue = oldMissingValue; 
+            this.annotations.Add("missingValue", oldMissingValue); 
             /*
             if (Array.isArray(result))
             {
@@ -1192,12 +1192,12 @@ namespace TextTemplate
                             value = string.Join("", list);
                         }
                         break;
-                    /*
-                        case 'Compose':
+			
+                        case "Compose":
                             value = this.compose(value,1);
                             this.bulletIndent = null; // reset bulleting
-                            break
-
+                            break;
+                        /*
                         case 'Count':
                         case 'Where':
                             if (!args.children){
@@ -1507,16 +1507,16 @@ namespace TextTemplate
                                     }
                                 }
                                 break;
-
-                            case '@BulletMode':
-                                let mode = argValues[0].toLowerCase();
-                                if (mode != 'explicit' && mode != 'implicit'){
-                                    this.syntaxError('Invalid Bullet Mode', args.children[0]);
+			    */
+                            case "@BulletMode":
+                                string mode = argValues[0].ToString().ToLower();
+                                if (mode != "explicit" && mode != "implicit"){
+                                    //this.syntaxError('Invalid Bullet Mode', args.children[0]);
                                 } else {
-                                    value['bulletMode'] = mode;
+                                    ((Dictionary<string, object>)value).Add("bulletMode", mode);
                                 }
                                 break;
-
+		  	    /*
                             case '@DateFormat':
                                 if (argValues.length == 0){
                                     delete value['dateFormat'];
@@ -1719,21 +1719,20 @@ namespace TextTemplate
             {
                 int level = 0;
                 bool bSorting = true;
-                /* 
-                	while (bSorting){ 
-                		let lowest = null; 
-		                foreach (var key in keys) { 
-                			if (bullets[key].level == null && (lowest == null || bullets[key].length < bullets[lowest].length)){ 
-                				lowest = key; 
-                			} 
-                		)); 
-                		if (lowest != null){ 
-                			bullets[lowest].level = level++; 
-                		} else { 
-                			bSorting = false; 
+            	while (bSorting){ 
+               		string lowest = null; 
+		        foreach (var key in keys) { 
+                		if (((TypedData)bullets[key.ToString()]).level == null && (lowest == null || ((TypedData)bullets[key.ToString()]).length < ((TypedData)bullets[lowest]).length))
+				{ 
+                			lowest = key; 
                 		} 
+                	} 
+                	if (lowest != null){ 
+                		((TypedData)bullets[lowest]).level = level++; 
+                	} else { 
+                		bSorting = false; 
+                	} 
                 } 
-                */
                 List<object> composed = new List<object>();
                 composed.Add(string.Join("\n", output.lines));
                 output = new ComposeOutput(lines: new List<string>(), skipping: false, mode: 1, bullets: bullets);
@@ -2079,7 +2078,12 @@ namespace TextTemplate
                             }
                             else
                             {
-                                this.bulletIndent = new BulletIndent(indent, this.bulletIndent, null, null); // bulletObject.level, this.annotations.bulletStyles);
+			    	List<string> bulletStyles = null;
+				if (this.annotations.ContainsKey("bulletStyles"))
+				{
+					bulletStyles = (List<string>)this.annotations["bulletStyles"];
+				}
+                                this.bulletIndent = new BulletIndent(indent, this.bulletIndent, ((TypedData)bulletObject).level, bulletStyles);
                             }
                             text = Regex.Replace(text, @"[ \t]*\x01\{\.\}", indent + (this.bulletIndent != null ? this.bulletIndent.getBullet() : ""));
                         }
@@ -2090,7 +2094,6 @@ namespace TextTemplate
                             while (this.bulletIndent != null && this.bulletIndent.indent.Length > nextLineIndent.Length)
                             {
                                 this.bulletIndent = this.bulletIndent.parent;
-
                             }
                         }
                     }
@@ -2098,7 +2101,7 @@ namespace TextTemplate
                     {
                         // during mode 0, capture the unique bullets
                         string bullet = Regex.Replace(text, @"^([ \t]*\x01\{\.\}).*$", "$1");
-                        ///output.bullets[bullet] = {bullet: bullet, length: bullet.Length}; 
+                        output.bullets[bullet] = new TypedData("bullet", length: bullet.Length); 
                         if (lines[lines.Count - 1] != "")
                         {
                             // bullets must start on a new line 

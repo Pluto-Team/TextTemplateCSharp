@@ -15,7 +15,9 @@ namespace TextTemplate
         public string defaultIndent;
         public object parts;
         public string bullet;
-        public TypedData(string type, string missingValue = null, string key = null, List<object> list = null, string defaultIndent = null, object parts = null, string bullet = "")
+        public int? level = null;
+        public int? length;
+        public TypedData(string type, string missingValue = null, string key = null, List<object> list = null, string defaultIndent = null, object parts = null, string bullet = "", int? length = null)
         {
             this.type = type;
             this.missingValue = missingValue;
@@ -24,6 +26,7 @@ namespace TextTemplate
             this.defaultIndent = defaultIndent;
             this.bullet = bullet;
             this.parts = parts;
+            this.length = length;
         }
     }
 }
