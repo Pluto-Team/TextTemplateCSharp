@@ -10,7 +10,7 @@ namespace TextTemplate
 {
     class TemplateData
     {
-		private Dictionary<string, object> dictionary = new Dictionary<string, object>();
+		public Dictionary<string, object> dictionary = new Dictionary<string, object>();
 		private List<TemplateData> list = new List<TemplateData>();
 		private TemplateData parent;
 		public string type;
@@ -69,7 +69,7 @@ namespace TextTemplate
 				this.type = "list";
 				((List<object>)json).ForEach(item =>
 				{
-					this.list.Add(new TemplateData(item.ToString(), this));
+					this.list.Add(new TemplateData(item is TemplateData ? item : item.ToString(), this));
 				}) ;
 			}
 			else if (json is JsonElement && ((JsonElement)json).ValueKind.ToString() == "Array")
