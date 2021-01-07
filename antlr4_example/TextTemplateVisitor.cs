@@ -543,54 +543,65 @@ namespace TextTemplate
         visitApostropheOperand = function(ctx){
             return this.visitApostrophedArgument(ctx);
         }
-        visitDigits = function(ctx){
-            return parseInt(ctx.GetText());
+        */
+        public override object VisitDigits([NotNull] TextTemplateParser.DigitsContext ctx) {
+            return int.Parse(ctx.GetText());
         }
+        /*
         visitRelationalOperand = function(ctx){
             return ctx.children[0].accept(this);
         }
-        visitRelationalOperation = function(ctx) {
-            let leftValue = ctx.children[0].accept(this);
-            let rightValue = ctx.children[2].accept(this);
-            let operator = ctx.children[1].GetText();
+        */
+        public override object VisitRelationalOperation([NotNull] TextTemplateParser.RelationalOperationContext ctx)
+        {
+            object leftValue = ctx.children[0].Accept(this);
+            object rightValue = ctx.children[2].Accept(this);
+            string op = ctx.children[1].GetText();
             // null == null and  null != !null
             if (leftValue == null || this.valueIsMissing(leftValue)){
-                if (rightValue == null || this.valueIsMissing(rightValue) || operator == '!='){
+                if (rightValue == null || this.valueIsMissing(rightValue) || op == "!="){
                     return true;
                 }
                 return false;
             }
             // !null != null and !null == null
             if (rightValue == null || this.valueIsMissing(rightValue)){
-                if (operator == '!='){
+                if (op == "!="){
                     return true;
                 }
                 return false;
             }
-            if (!isNaN(leftValue) && !isNaN(rightValue)){
-                leftValue = parseInt(leftValue);
-                rightValue = parseInt(rightValue)
-            } else {
-                leftValue = leftValue.toString();
-                rightValue = rightValue.toString();
+            bool bIsNumeric = false;
+            int parsedLeft = 0;
+            int parsedRight = 0;
+            if (int.TryParse(leftValue.ToString(), out parsedLeft) && int.TryParse(rightValue.ToString(), out parsedRight))
+            {
+                bIsNumeric = true;
             }
-            switch (operator){
-                case '=':
-                case '==':
-                    return leftValue ==rightValue
-                case '>':
-                    return leftValue > rightValue;
-                case '<':
-                    return leftValue < rightValue;
-                case '>=':
-                    return leftValue >= rightValue;
-                case '<=':
-                    return leftValue <= rightValue;
-                case '!=':
-                    return leftValue != rightValue;
+            bool result = false;
+            switch (op){
+                case "=":
+                case "==":
+                    result = bIsNumeric ? (parsedLeft == parsedRight) : (leftValue.ToString() == rightValue.ToString());
+                    break;
+                case ">":
+                    result = bIsNumeric ? (parsedLeft > parsedRight) : (leftValue.ToString().CompareTo(rightValue.ToString()) > 0);
+                    break;
+                case "<":
+                    result = bIsNumeric ? (parsedLeft > parsedRight) : (leftValue.ToString().CompareTo(rightValue.ToString()) < 0);
+                    break;
+                case ">=":
+                    result = bIsNumeric ? (parsedLeft > parsedRight) : (leftValue.ToString().CompareTo(rightValue.ToString()) >= 0);
+                    break;
+                case "<=":
+                    result = bIsNumeric ? (parsedLeft > parsedRight) : (leftValue.ToString().CompareTo(rightValue.ToString()) <= 0);
+                    break;
+                case "!=":
+                    result = bIsNumeric ? (parsedLeft > parsedRight) : (!leftValue.Equals(rightValue.ToString()));
+                    break;
             }
+            return result;
         }
-        */
         public override object VisitBracketedTemplateSpec([NotNull] TextTemplateParser.BracketedTemplateSpecContext ctx)
         {
             List<object> oldSubtemplates = new List<object>(); // only needed if this spec contains subtemplates 
