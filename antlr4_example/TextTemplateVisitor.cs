@@ -55,41 +55,11 @@ namespace TextTemplate
                     result.Add(childResult);
                 }
             }
+	    if (result.Count == 1)
+	    {
+	    	return result[0];
+	    }
             return result;
-        }
-
-        private object JoinChildrenResult(IList<IParseTree> children)
-        {
-            List<string> results = new List<string>();
-            foreach (IParseTree child in children)
-            {
-                Object result = child.Accept(this);
-                if (result is String || result is int)
-                {
-                    results.Add((string)result.ToString());
-                }
-                else if (result is List<object>)
-                {
-                    foreach (object res in (List<object>)result)
-                    {
-                        object resValue = res;
-			if (resValue is TypedData && ((TypedData)resValue).type == "missing")
-			{
-				resValue = ((TypedData)resValue).missingValue;
-			}
-			results.Add((string)resValue);
-                    }
-                }
-                else
-                {
-                    if (children.Count == 1)
-                    {
-                        return result;
-                    }
-                    return "ERROR: Unexpected result type (" + (result == null ? "null" : result.GetType().Name) + ") in " + child.GetText();
-                }
-            }
-            return string.Join("", results.ToArray<string>());
         }
         public override object VisitText([NotNull] TextTemplateParser.TextContext ctx)
         {
@@ -494,7 +464,7 @@ namespace TextTemplate
             {
                 return result;
             }
-            return " "; // false means ignore this token
+            return ""; // false means ignore this token
         }
         public override object VisitBracedArrow([NotNull] TextTemplateParser.BracedArrowContext ctx)
         {
@@ -1045,7 +1015,7 @@ namespace TextTemplate
             {
                 error = "ERROR: too few arguments for " + method + ": " + argsGetText;
             }
-            else if (value == null || (value is TemplateData || (value is TypedData && ((TypedData)value).type == "argument") && (
+            else if ((value == null || value is TemplateData || (value is TypedData && ((TypedData)value).type == "argument")) && (
                 method == ""
                 || method == "ToUpper"
                 || method == "ToLower"
@@ -1062,7 +1032,7 @@ namespace TextTemplate
                 || method == "LastIndexOf"
                 || method == "IndexOf"
                 || method == "EncodeFor"
-            ))) {
+            )) {
                 value = null;
             } else {
                 switch (method) {
@@ -1746,9 +1716,9 @@ namespace TextTemplate
                 } 
                 List<object> composed = new List<object>();
                 composed.Add(string.Join("\n", output.lines));
-                List<string> composeOutput = new List<string>();
-                composeOutput.Add("");
-                output = new ComposeOutput(lines: composeOutput, skipping: false, mode: 1, bullets: bullets);
+                List<string> composeLines = new List<string>();
+                composeLines.Add("");
+                output = new ComposeOutput(lines: composeLines, skipping: false, mode: 1, bullets: bullets);
                 this.doCompose(composed, output, null);
             }
             return string.Join("\n", output.lines);
@@ -1769,9 +1739,9 @@ namespace TextTemplate
                             {
                                 // create a new bullet object to avoid a side effect 
                                 List<object> bulletParts = new List<object>();
-                                foreach (object part in parts)
+                                foreach (object part in (List<object>)((TypedData)item).parts)
                                 {
-                                    //////////bulletParts.Add(part);
+                                    bulletParts.Add(part);
                                 }
                                 item = new TypedData("bullet", bullet: ((TypedData)item).bullet, parts: bulletParts, defaultIndent: ((TypedData)item).defaultIndent);
                                 for (iParts++; iParts < parts.Count; iParts++)
