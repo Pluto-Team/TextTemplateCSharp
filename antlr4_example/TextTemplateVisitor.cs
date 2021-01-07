@@ -264,8 +264,7 @@ namespace TextTemplate
         }
         public override object VisitCompilationUnit([NotNull] TextTemplateParser.CompilationUnitContext ctx)
         {
-            Debug.Write(this.getParseTree(ctx)); // for debugging
-            //return base.VisitCompilationUnit(ctx);
+            //Debug.Write(this.getParseTree(ctx)); // for debugging
             if (ctx.ChildCount == 0)
             {
                 return ""; // no data
@@ -766,7 +765,7 @@ namespace TextTemplate
         {
             object value = this.VisitChildren(ctx);
             // testing to see if the identifier has a value
-            if (!valueIsMissing(value) && value.ToString() != ""){
+            if (!(value is bool && (bool)value == false) && !valueIsMissing(value) && value.ToString() != ""){
                 ///    if (this.annotations.falsy != null && this.annotations.falsy.test(value)){
                 ///        return false;
                 ///    }
