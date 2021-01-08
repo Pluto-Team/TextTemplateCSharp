@@ -290,14 +290,12 @@ namespace TextTemplate
             Dictionary<string, object> oldAnnotations = new Dictionary<string, object>(); 
             annotations.Keys.ToList().ForEach((key) => { 
                 oldAnnotations[key.ToString()] = this.annotations[key.ToString()]; 
-            }); 
-            /* 
-            let oldSubtemplates = []; // only needed if this spec contains subtemplates
+            });
+            Dictionary<string, string>  oldSubtemplates = new Dictionary<string, string>(); // only needed if this spec contains subtemplates
             // clone the current subtemplates in case methods add new ones that overwrite more global ones
-            for (let key in this.subtemplates){
-                oldSubtemplates[key] = this.subtemplates[key];
+            foreach (var key in this.subtemplates.Keys){
+                oldSubtemplates.Add(key.ToString(), this.subtemplates[key.ToString()]);
             }
-            */
             if (valueContext != null) { // null implies that the value is the current context
                 bool bTargetIsTemplate = valueContext.GetText().StartsWith("[") || valueContext.GetText().StartsWith("#"); // value will be obtained from a template 
                                                                                                                            // process annotations first 
@@ -390,16 +388,17 @@ namespace TextTemplate
                     }
                 }
             }
-            ///
+            //Debug.Write("STRINGIFY" + JsonSerializer.Serialize(annotations.bulletStyles));
             /*
-            if (JSON.stringify(this.annotations.bulletStyles) != JSON.stringify(oldAnnotations.bulletStyles)){
+            if (JsonSerializer.Serialize(annotations.bulletStyles) != JsonSerializer.Serialize(oldAnnotations.bulletStyles))
+            {
                 // the bullet style has changed, so compose the output before the styles get modified back
                 // TODO: consider instead adding the current bullet style to all bullets and lists in the output
                 value = this.compose(value, 1);
             }
             */
-            ///this.annotations = oldAnnotations;
-            ///this.subtemplates = oldSubtemplates;
+            this.annotations = oldAnnotations;
+            this.subtemplates = oldSubtemplates;
             return value;
         }
         public override object VisitQuoteLiteral([NotNull] TextTemplateParser.QuoteLiteralContext ctx)
@@ -2199,12 +2198,12 @@ namespace TextTemplate
                             }
                             else
                             {
-			    	List<string> bulletStyles = null;
-				if (this.annotations.ContainsKey("bulletStyles"))
-				{
-					bulletStyles = (List<string>)this.annotations["bulletStyles"];
-				}
-                                this.bulletIndent = new BulletIndent(indent, this.bulletIndent, ((TypedData)bulletObject).level, bulletStyles);
+                            List<string> bulletStyles = null;
+                            if (this.annotations.ContainsKey("bulletStyles"))
+                            {
+                                bulletStyles = (List<string>)this.annotations["bulletStyles"];
+                            }
+                            this.bulletIndent = new BulletIndent(indent, this.bulletIndent, ((TypedData)bulletObject).level, bulletStyles);
                             }
                             text = Regex.Replace(text, @"[ \t]*\x01\{\.\}", indent + (this.bulletIndent != null ? this.bulletIndent.getBullet() : ""));
                         }
