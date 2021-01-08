@@ -3,3 +3,7 @@ image: gitpod/workspace-dotnet
 tasks:
   - init: dotnet build
     command: dotnet run --project /workspace/TextTemplateCSharp/antlr4_example
+
+vscode:
+  extensions:
+    - ms-dotnettools.csharp@1.22.0:H/UU3ezplPBgjaLNwtevwA==
