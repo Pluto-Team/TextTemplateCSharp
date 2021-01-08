@@ -31,7 +31,7 @@ Subtemplates:
 
 {#formatPet:[a {type} named {name}]}
 {#anded:[{$0.Join(', ',' and ')}]}";
-			string IGNOREinput = @"People:{#data:[
+			input = @"People:{#data:[
    {.} {[{ 
       lastName}{ 
       firstName.#Prepend(', ')}{    

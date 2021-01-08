@@ -755,12 +755,20 @@ namespace TextTemplate
                 return result[0];
             //}
             //return result;
-        };
-        visitNotPredicate = function(ctx) {
-            let result : any = this.visitChildren(ctx)[1];
-            return !result;
-        };
-        */
+        };*/
+        public override object VisitNotPredicate([NotNull] TextTemplateParser.NotPredicateContext ctx)
+        {
+            object result = VisitChildren(ctx);
+            if (result is bool)
+            {
+                return !(bool)result;
+            }
+            if (valueIsMissing(result))
+            {
+                return true;
+            }
+            return false;
+        }
         public override object VisitCondition([NotNull] TextTemplateParser.ConditionContext ctx)
         {
             object value = this.VisitChildren(ctx);
@@ -1073,21 +1081,125 @@ namespace TextTemplate
                             }
                             value = method == "GreaterThan" ? (value > arg) : (value < arg);
                             break;
+                    */
+                    case "Case":
+                        for (int i = 0; i < argValues.Count; i += 2)
+                        {
+                            int parseArgValuesI;
+                            int parseValue;
+                            if ((int.TryParse(argValues[i].ToString(), out parseArgValuesI) && int.TryParse(value.ToString(), out parseValue) && parseArgValuesI == parseValue) || argValues[i].ToString() == value.ToString())
+                            {
+                                value = argValues[i + 1];
+                                break;
+                            }
+                            else if ((i + 3) == argValues.Count)
+                            {
+                                value = argValues[i + 2]; // default 
+                                break;
+                            }
+                        }
+                        break;
 
-                        case "Case":
-                            for (let i = 0; i < argValues.length; i+=2){
-                                if ((!isNaN(argValues[i]) && !isNaN(value) && parseInt(argValues[i]) == parseInt(value)) || argValues[i].toString() == value.toString()){
-                                    value = argValues[i + 1];
-                                    break;
-                                } else if ((i + 3) == argValues.length){
-                                    value = argValues[i + 2]; // default
-                                    break;
+
+                    case "Assert":
+                    case "Matches":
+                        object originalValue = value;
+                        if (value is string && ((string)value).Contains("\x0l{.}"))
+                        {
+                            // special case for matching the output of bullet templates 
+                            List<object> composeArray = new List<object>();
+                            composeArray.Add(value);
+                            value = this.compose(composeArray, 1); // compose with bulleting 
+                        }
+                        bool matches = false;
+                        if (argValues.Count == 0 || this.valueIsMissing(value))
+                        {
+                            if (argValues.Count == 0 && this.valueIsMissing(value))
+                            {
+                                matches = true; // TODO: is it appropriate to match nulls? 
+                            }
+                        }
+                        else
+                        {
+                            bool bFirst = true;
+                            List<object> composeArg = new List<object>();
+                            composeArg.Add(args);
+                            argValues.ForEach((arg) =>
+                            {
+                                bool bIsNumeric = false;
+                                int parsedLeft = 0;
+                                int parsedRight = 0;
+                                if (arg != null && (method != "Assert" || bFirst))
+                                { // Assert only matches the first argument 
+                                    if (false)
+                                    {/// (arg.constructor.name == "RegExp"){ 
+                                        matches = matches; /// || arg.test(value); 
+                                    }
+                                    else if ((int.TryParse(arg.ToString(), out parsedLeft) && int.TryParse(value.ToString(), out parsedRight) && parsedLeft == parsedRight) || arg.ToString() == value.ToString())
+                                    {
+                                        matches = true;
+                                    }
+                                    else if (arg is string && ((string)arg).Contains("\x0l{.}") && (string)value == (string)compose(composeArg, 1))
+                                    {
+                                        matches = true;
+                                    }
+                                    bFirst = false;
+                                }
+                            });
+                        }
+                        if (method == "Assert")
+                        {
+                            if (matches == true)
+                            {
+                                if (argValues.Count > 1)
+                                {
+                                    value = argValues[1];
+
+                                }
+                                else
+                                {
+                                    value = originalValue; // if the second argument is missing, return the original value 
                                 }
                             }
-                            break;
+                            else if (argValues.Count > 2)
+                            {
+                                value = argValues[2];
+                            }
+                            else
+                            {
+                                string failure = "ASSERT FAILURE:\n";
+                                string arg = argValues[0].ToString();
+                                int i = 0;
+                                for (; i < value.ToString().Length && i < arg.Length; i++)
+                                {
+                                    if (value.ToString().Substring(i, 1) != arg.Substring(i, 1))
+                                    {
+                                        break;
+                                    }
 
-                        case "Assert":
-                        case "Matches":
+                                }
+                                failure += (value.ToString().Substring(0, i) + "--->");
+                                if (i == value.ToString().Length)
+                                {
+                                    failure += ("Missing: " + arg.Substring(i));
+                                }
+                                else if (i == arg.Length)
+                                {
+                                    failure += ("Unexpected: " + value.ToString().Substring(i));
+                                }
+                                else
+                                {
+                                    failure += ("Mismatch: " + value.ToString().Substring(i));
+                                }
+                                value = failure;
+                            }
+                        }
+                        else
+                        {
+                            value = matches;
+                        }
+                        break;
+                    /*
                             let originalValue = value;
                             if (typeof value == "string" && value.includes("\x01{.}")){
                                 // special case for matching the output of bullet templates
@@ -1177,237 +1289,264 @@ namespace TextTemplate
                             value = this.compose(value,1);
                             this.bulletIndent = null; // reset bulleting
                             break;
-                        /*
-                        case 'Count':
-                        case 'Where':
-                            if (!args.children){
-                                // no arguments
-                                if (method == 'Where'){
-                                    value = 'ERROR: no condition specified for .Where()';
-                                    this.syntaxError(value, args.parentCtx);
-                                } else if (method == 'Count'){
-                                    if (value == undefined){
+
+                        case "Count":
+                        case "Where":
+                            if (args is ITerminalNode || ((RuleContext)args).ChildCount == 0)
+                            {
+                                // no arguments 
+                                if (method == "Where")
+                                {
+                                    value = "ERROR: no condition specified for .Where()";
+                                    ///this. syntaxError(value, args.parentCtx); 
+                                }
+                                else if (method == "Count")
+                                {
+                                    if (value == null)
+                                    {
                                         value = 0;
-                                    } else if (value instanceof TemplateData && value.type == 'list'){
-                                        value = value.count();
-                                    } else {
+                                    }
+                                    else if (value is TemplateData && ((TemplateData)value).type == "list")
+                                    {
+                                        value = ((TemplateData)value).Count();
+                                    }
+                                    else
+                                    {
                                         value = 1;
                                     }
                                 }
-                            //} else if (!(args.constructor.name == 'ConditionContext' || args.constructor.name == 'NotPredicateContext' || args.constructor.name == 'LogicalOperatorContext' || args.constructor.name == 'NestedPredicateContext')){
-                                //value = 'ERROR: invalid argument for ' + method + ': ' + args.getText();
-                                //this.syntaxError(value, args);
-                            } else {
-                                if (value instanceof TemplateData){
-                                    let oldContext : TemplateData = this.context;
-                                    // temporarily set the context to the value being evaluated
-                                    this.context = <TemplateData>value;
-                                    let dollarVariables = {};
-                                    oldContext.getKeys().forEach((key)=>{
-                                        if (key.startsWith('$')){
+                            }
+                            else
+                            {
+                                if (value is TemplateData)
+                                {
+                                    TemplateData oldContext = this.context;
+                                    // temporarily set the context to the value being evaluated 
+                                    this.context = (TemplateData)value;
+                                    Dictionary<string, object> dollarVariables = new Dictionary<string, object>();
+                                    oldContext.getKeys().ForEach((key) => {
+                                        if (key.ToString().StartsWith("$"))
+                                        {
                                             dollarVariables[key] = oldContext.getValue(key);
                                         }
                                     });
-                                    let result = [];
-                                    if (this.context.type == 'list'){
-                                        this.context.iterateList((newContext)=>{
-                                            let oldContext : TemplateData = this.context;
+                                    List<object> result = new List<object>();
+                                    if (this.context.type == "list")
+                                    {
+                                        this.context.IterateList((TemplateData newContext) => {
                                             this.context = newContext;
-                                            Object.keys(dollarVariables).forEach((key)=>{
-                                                newContext.dictionary[key] = dollarVariables[key]; // pass on the $ variables
+                                            dollarVariables.Keys.ToList().ForEach((key) => {
+                                                newContext.dictionary[key] = dollarVariables[key]; // pass on the $ variables 
                                             });
-                                            let addToResult = args.children[0].accept(this)[0];
-                                            if (this.valueIsMissing(addToResult) || (typeof addToResult == "string" && this.annotations.falsy && this.annotations.falsy.test(addToResult))){
+                                            object addToResult = args is ITerminalNode ? true : ((RuleContext)args).GetChild(0).Accept(this); // [0]; 
+                                            if (this.valueIsMissing(addToResult))
+                                            { // || (addToResult is string && this.annotations. ContainsKey("falsy") && this.annotations.falsy.test(addToResult))){ 
                                                 addToResult = false;
                                             }
-                                            if (addToResult){
+                                            if (addToResult != null && !(addToResult is bool && (bool)addToResult == false))
+                                            {
                                                 // the condition returned true; add a clone of the iteration 
-                                                Object.keys(dollarVariables).forEach((key)=>{
-                                                    delete newContext.dictionary[key];  // remove the added $ variables
+                                                dollarVariables.Keys.ToList().ForEach((key) => {
+                                                    newContext.dictionary.Remove(key.ToString()); // remove the added $ variables 
                                                 });
-                                                result.push(new TemplateData(this.context)); 
+                                                result.Add(new TemplateData(this.context));
+
                                             }
                                             this.context = oldContext;
                                         });
-                                    } else {
-                                        let filterResult = args.accept(this);
-                                        while (Array.isArray(filterResult) && filterResult.length == 1){
-                                            filterResult = filterResult[0];
+                                    }
+                                    else
+                                    {
+                                        object filterResult = ((RuleContext)args).Accept(this);
+                                        while (filterResult is List<object> && ((List<object>)filterResult).Count == 1)
+                                        {
+                                            filterResult = ((List<object>)filterResult)[0];
                                         }
-
-                                        if (filterResult){
-                                            result.push(this.context); // no filtering (or cloning) necessary 
+                                        if (filterResult != null)
+                                        {
+                                            result.Add(this.context); // no filtering (or cloning) necessary 
                                         }
                                     }
-                                    this.context = oldContext; // restore old context
-                                    if (result.length == 0){
-                                        value = { type: 'missing', missingValue: this.annotations.missingValue, key: 'list' }; // indication of missing value
-                                    } else {
+                                    this.context = oldContext; // restore old context 
+                                    if (result.Count == 0)
+                                    {
+                                        string missingValue = this.annotations.ContainsKey("missingValue") ? (string)this.annotations["missingValue"] : null;
+                                        value = new TypedData("missing", missingValue: missingValue, key: "list"); // indication of missing value 
+
+                                    }
+                                    else
+                                    {
                                         value = new TemplateData(result, this.context);
                                     }
                                 }
-                                if (method == 'Count'){
-                                    if (this.valueIsMissing(value)){
+                                if (method == "Count")
+                                {
+                                    if (this.valueIsMissing(value))
+                                    {
                                         value = 0;
-                                    } else if (value instanceof TemplateData && value.type == 'list'){
-                                        value = value.count();
-                                    } else {
+                                    }
+                                    else if (value is TemplateData && ((TemplateData)value).type == "list")
+                                    {
+                                        value = ((TemplateData)value).Count();
+                                    }
+                                    else
+                                    {
                                         value = 1;
                                     }
                                 }
                             }
                             break;
-
-                            case 'Align':
-                                if (argValues.length > 3 || argValues.length == 0 || isNaN(argValues[0]) 
-                                        || (argValues.length > 1 && !(argValues[1] == 'L' || argValues[1] == 'R' || argValues[1] == 'C'))){
-                                    this.syntaxError('Incorrect arguments for ' + method, args);
-                                } else {
-                                    let paddingType = argValues.length == 1 ? 'L' : argValues[1];
-                                    let padding = (argValues.length == 3 && argValues[2] != '') ? argValues[2].toString() : ' ';
-                                    let paddingLength = parseInt(argValues[0]);
-                                    value = value.toString();
-                                    while (value.length < paddingLength){
-                                        if (paddingType == 'L' || paddingType == 'C'){
-                                            value = (value + padding).substr(0, paddingLength);
-                                        }
-                                        if (paddingType == 'R' || paddingType == 'C'){
-                                            let newLength = padding.length + value.length;
-                                            // insure that multi character padding doesn't cause the actual value to be cut and the value is not larger than padding length
-                                            value = ((padding.substr(newLength > paddingLength ? newLength - paddingLength : 0)) + value).substr(0, paddingLength);
-                                        }
+                            /* 
+                        case 'Align':
+                            if (argValues.length > 3 || argValues.length == 0 || isNaN(argValues[0]) 
+                                    || (argValues.length > 1 && !(argValues[1] == 'L' || argValues[1] == 'R' || argValues[1] == 'C'))){
+                                this.syntaxError('Incorrect arguments for ' + method, args);
+                            } else {
+                                let paddingType = argValues.length == 1 ? 'L' : argValues[1];
+                                let padding = (argValues.length == 3 && argValues[2] != '') ? argValues[2].toString() : ' ';
+                                let paddingLength = parseInt(argValues[0]);
+                                value = value.toString();
+                                while (value.length < paddingLength){
+                                    if (paddingType == 'L' || paddingType == 'C'){
+                                        value = (value + padding).substr(0, paddingLength);
+                                    }
+                                    if (paddingType == 'R' || paddingType == 'C'){
+                                        let newLength = padding.length + value.length;
+                                        // insure that multi character padding doesn't cause the actual value to be cut and the value is not larger than padding length
+                                        value = ((padding.substr(newLength > paddingLength ? newLength - paddingLength : 0)) + value).substr(0, paddingLength);
                                     }
                                 }
-                                break;
+                            }
+                            break;
 
-                            case 'Trim':
-                                value = value.trim();
-                                break;
+                        case 'Trim':
+                            value = value.trim();
+                            break;
 
-                            case 'StartsWith':
-                                value = value.startsWith(argValues[0]);
-                                break;
+                        case 'StartsWith':
+                            value = value.startsWith(argValues[0]);
+                            break;
 
-                            case 'EndsWith':
-                                value = value.endsWith(argValues[0]);
-                                break;
+                        case 'EndsWith':
+                            value = value.endsWith(argValues[0]);
+                            break;
 
-                            case 'Replace':
-                                if (typeof argValues[0] == "string"){
-                                    // this is a common "replaceAll" implementation which should change when javascript replaceAll becomes standard
-                                    value = value.split(argValues[0]).join(argValues[1]);
-                                } else {
-                                    // presumably regex
-                                    value = value.replace(argValues[0], argValues[1]);
-                                }
-                                break;
+                        case 'Replace':
+                            if (typeof argValues[0] == "string"){
+                                // this is a common "replaceAll" implementation which should change when javascript replaceAll becomes standard
+                                value = value.split(argValues[0]).join(argValues[1]);
+                            } else {
+                                // presumably regex
+                                value = value.replace(argValues[0], argValues[1]);
+                            }
+                            break;
 
-                            case 'Contains':
-                                value = value.includes(argValues[0]);
-                                break;
+                        case 'Contains':
+                            value = value.includes(argValues[0]);
+                            break;
 
-                            case 'Substr':
-                                if (argValues.length > 2 || isNaN(argValues[0]) || (argValues.length == 2 && isNaN(argValues[1]))){
-                                    this.syntaxError('Incorrect arguments for ' + method, args);
-                                }
+                        case 'Substr':
+                            if (argValues.length > 2 || isNaN(argValues[0]) || (argValues.length == 2 && isNaN(argValues[1]))){
+                                this.syntaxError('Incorrect arguments for ' + method, args);
+                            }
+                            if (argValues.length == 1){
+                                value = value.substr(parseInt(argValues[0]));
+                            } else {
+                                value = value.substr(parseInt(argValues[0]), parseInt(argValues[1]));
+                            }
+                            break;
+
+                        case 'LastIndexOf':
+                            value = value.toString().lastIndexOf(argValues[0]);
+                            break;
+
+                        case 'IndexOf':
+                            value = value.toString().indexOf(argValues[0])
+                            break;
+
+                        case 'OrderBy':
+                        case 'GroupBy':
+                            if (method == 'OrderBy'){
                                 if (argValues.length == 1){
-                                    value = value.substr(parseInt(argValues[0]));
-                                } else {
-                                    value = value.substr(parseInt(argValues[0]), parseInt(argValues[1]));
+                                    argValues.push('A');
+                                } else if (argValues.length == 2){
+                                    argValues[1] = argValues[1].toUpperCase().replace('ASC', 'A').replace('DESC','D');
                                 }
-                                break;
-
-                            case 'LastIndexOf':
-                                value = value.toString().lastIndexOf(argValues[0]);
-                                break;
-
-                            case 'IndexOf':
-                                value = value.toString().indexOf(argValues[0])
-                                break;
-
-                            case 'OrderBy':
-                            case 'GroupBy':
-                                if (method == 'OrderBy'){
-                                    if (argValues.length == 1){
-                                        argValues.push('A');
-                                    } else if (argValues.length == 2){
-                                        argValues[1] = argValues[1].toUpperCase().replace('ASC', 'A').replace('DESC','D');
-                                    }
-                                }
-                                let oldContext : TemplateData = this.context;
-                                let groups = {};
-                                if (method == 'GroupBy' && argValues.length == 2 && !/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(args.children[0].getText())){
-                                    // A formula or other non-identifier must be aliased
-                                    this.syntaxError('An alias (third parameter) must be provided for the GroupBy name', args.children[0]);
-                                } else if (!(<any>value instanceof TemplateData)){
-                                    this.syntaxError('Invalid data type for ' + method, args.parentCtx);
-                                } else if ((method == 'GroupBy' && argValues.length < 2) || (method == 'OrderBy' && (argValues.length != 2 || !(argValues[1] == 'A' || argValues[1] == 'D')))){
-                                    this.syntaxError('Invalid arguments for ' + method, args.parentCtx);
-                                } else {
-                                    // temporarily set the context to the value being ordered or grouped
-                                    this.context = <TemplateData>value;
-                                    let dollarVariables = {};
-                                    if (oldContext != null){
-                                        oldContext.getKeys().forEach((key)=>{
-                                            if (key.startsWith('$')){
-                                                dollarVariables[key] = oldContext.getValue(key);
-                                            }
-                                        });
-                                    }
-                                    this.context.asList().iterateList((newContext)=>{
-                                        this.context = newContext;
-                                        Object.keys(dollarVariables).forEach((key)=>{
-                                            newContext.dictionary[key] = dollarVariables[key]; // pass on the $ variables in case they are needed for a calculaton
-                                        });
-                                        let groupKey = args.children[0].accept(this)[0];
-                                        if (Array.isArray(groupKey)){
-                                            // composite probably created from a template argument that needs to be composed
-                                            groupKey = this.compose(groupKey, 1);
-                                        }
-                                        Object.keys(dollarVariables).forEach((key)=>{
-                                            delete newContext.dictionary[key];  // remove the added $ variables
-                                        });
-                                        if (groups[groupKey] == null){
-                                            groups[groupKey] = this.context;
-                                        } else {
-                                            if (!Array.isArray(groups[groupKey])){
-                                                groups[groupKey] = [groups[groupKey]];
-                                            }
-                                            groups[groupKey].push(this.context);
+                            }
+                            let oldContext : TemplateData = this.context;
+                            let groups = {};
+                            if (method == 'GroupBy' && argValues.length == 2 && !/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(args.children[0].getText())){
+                                // A formula or other non-identifier must be aliased
+                                this.syntaxError('An alias (third parameter) must be provided for the GroupBy name', args.children[0]);
+                            } else if (!(<any>value instanceof TemplateData)){
+                                this.syntaxError('Invalid data type for ' + method, args.parentCtx);
+                            } else if ((method == 'GroupBy' && argValues.length < 2) || (method == 'OrderBy' && (argValues.length != 2 || !(argValues[1] == 'A' || argValues[1] == 'D')))){
+                                this.syntaxError('Invalid arguments for ' + method, args.parentCtx);
+                            } else {
+                                // temporarily set the context to the value being ordered or grouped
+                                this.context = <TemplateData>value;
+                                let dollarVariables = {};
+                                if (oldContext != null){
+                                    oldContext.getKeys().forEach((key)=>{
+                                        if (key.startsWith('$')){
+                                            dollarVariables[key] = oldContext.getValue(key);
                                         }
                                     });
-                                    this.context = oldContext;
-                                    let result = [];
-                                    let keys = Object.keys(groups).sort();
-                                    if (method == 'OrderBy' && argValues[1] == 'D'){
-                                        keys.reverse();
-                                    }
-                                    let groupingName = argValues.length == 3 ? argValues[2] : args.children[0].getText(); // use an alias or the GroupBy identifier
-                                    keys.forEach((key)=>{
-                                        let group = groups[key];
-                                        if (method == 'OrderBy'){
-                                            if (Array.isArray(group)){
-                                                group.forEach((member)=>{
-
-                                                    result.push(member); // if there is more than one, they are key duplicates
-                                                });
-                                            } else {
-                                                result.push(group);
-                                            }
-                                        } else {
-                                            // GroupBy
-                                            let data =  {};
-                                            data[groupingName] = key;
-                                            data[argValues[1]] = group;
-                                            result.push(new TemplateData(data));
-                                        }
-                                    });
-                                    value = new TemplateData(result, this.context);
                                 }
-                                break;
-                            */
+                                this.context.asList().iterateList((newContext)=>{
+                                    this.context = newContext;
+                                    Object.keys(dollarVariables).forEach((key)=>{
+                                        newContext.dictionary[key] = dollarVariables[key]; // pass on the $ variables in case they are needed for a calculaton
+                                    });
+                                    let groupKey = args.children[0].accept(this)[0];
+                                    if (Array.isArray(groupKey)){
+                                        // composite probably created from a template argument that needs to be composed
+                                        groupKey = this.compose(groupKey, 1);
+                                    }
+                                    Object.keys(dollarVariables).forEach((key)=>{
+                                        delete newContext.dictionary[key];  // remove the added $ variables
+                                    });
+                                    if (groups[groupKey] == null){
+                                        groups[groupKey] = this.context;
+                                    } else {
+                                        if (!Array.isArray(groups[groupKey])){
+                                            groups[groupKey] = [groups[groupKey]];
+                                        }
+                                        groups[groupKey].push(this.context);
+                                    }
+                                });
+                                this.context = oldContext;
+                                let result = [];
+                                let keys = Object.keys(groups).sort();
+                                if (method == 'OrderBy' && argValues[1] == 'D'){
+                                    keys.reverse();
+                                }
+                                let groupingName = argValues.length == 3 ? argValues[2] : args.children[0].getText(); // use an alias or the GroupBy identifier
+                                keys.forEach((key)=>{
+                                    let group = groups[key];
+                                    if (method == 'OrderBy'){
+                                        if (Array.isArray(group)){
+                                            group.forEach((member)=>{
 
-                            case "IfMissing":
+                                                result.push(member); // if there is more than one, they are key duplicates
+                                            });
+                                        } else {
+                                            result.push(group);
+                                        }
+                                    } else {
+                                        // GroupBy
+                                        let data =  {};
+                                        data[groupingName] = key;
+                                        data[argValues[1]] = group;
+                                        result.push(new TemplateData(data));
+                                    }
+                                });
+                                value = new TemplateData(result, this.context);
+                            }
+                            break;
+                        */
+
+                    case "IfMissing":
                                 if (value == null || (value is TypedData && ((TypedData)value).type == "missing")) {
                                     value = argValues[0];
                                 }
@@ -1921,7 +2060,7 @@ namespace TextTemplate
                                 {
                                     newIndent = indent;
                                 }
-                                if (nextLine != null && !((string)nextLine).StartsWith("\n") && !(bIncompleteIndent && bFirst) && (!bEmptyLine || !bFirst))
+                                if (nextLine != null && !(nextLine.ToString()).StartsWith("\n") && !(bIncompleteIndent && bFirst) && (!bEmptyLine || !bFirst))
                                 {
                                     this.addToOutput("\n", output); // start a new line 
                                     if (newIndent != null && newIndent != "" && !bNextLineStartsWithBullet)
