@@ -388,15 +388,12 @@ namespace TextTemplate
                     }
                 }
             }
-            //Debug.Write("STRINGIFY" + JsonSerializer.Serialize(annotations.bulletStyles));
-            /*
-            if (JsonSerializer.Serialize(annotations.bulletStyles) != JsonSerializer.Serialize(oldAnnotations.bulletStyles))
+            if (JsonSerializer.Serialize(annotations["bulletStyles"]) != JsonSerializer.Serialize(oldAnnotations["bulletStyles"]))
             {
                 // the bullet style has changed, so compose the output before the styles get modified back
                 // TODO: consider instead adding the current bullet style to all bullets and lists in the output
                 value = this.compose(value, 1);
             }
-            */
             this.annotations = oldAnnotations;
             this.subtemplates = oldSubtemplates;
             return value;
@@ -621,21 +618,20 @@ namespace TextTemplate
                     listObject.list.Add(ctx.children[0].Accept(this));
                     context = oldContext;
                 });
-                /*
-                let refinedList = [];
-                listObject.list.forEach((item)=>{
+                List<object> refinedList = new List<object>();
+                ((TypedData)listObject).list.ForEach((item)=>{
                     if (this.compose(item, 0) != null){
-                        refinedList.push(item);
+                        refinedList.Add(item);
                     }
                 });
-                if (refinedList.length == 0){
-                    refinedList.push({type: 'missing', missingValue: this.annotations.missingValue, key: 'list'});
+                if (refinedList.Count == 0){
+                    string missingValue = annotations.ContainsKey("missingValue") ? (string)annotations["missingValue"] : null;
+                    refinedList.Add(new TypedData("missing", missingValue: missingValue, key: "list"));
                 }
                 listObject.list = refinedList;
-                if (listObject.list.length == 1){
+                if (listObject.list.Count == 1){
                     return listObject.list[0]; // no longer a list
                 }
-                */
                 return listObject;
             }
             return ctx.children[0].Accept(this);
@@ -1551,159 +1547,167 @@ namespace TextTemplate
                                 }
                                 break;
 
-                            /*
-                            case 'ToJson':
-                                if (value == null){
-                                    value = 'null';
-                                } else {
-                                    if (typeof value == 'object' && value.type == 'argument'){
-                                        value = new TemplateData(value.list);
-                                    }
-                                }
-                                if (value instanceof TemplateData){
-                                    value = value.toJson();
-                                } else if (args.parentCtx.parentCtx && args.parentCtx.parentCtx.children[0]){
-                                    let obj = {};
-                                    let templateText : string = args.parentCtx.parentCtx.children[0].getText();
-                                    if (templateText.startsWith('#')){
-                                        obj[templateText] = this.subtemplates[templateText];
-                                    } else if (templateText.startsWith('[')){
-                                        obj['template'] = templateText.substr(1, templateText.length - 2);
-                                    } else {
-                                        obj[templateText] = value == null ? null : value;
-                                    }
-                                    value = JSON.stringify(obj);
-                                } else {
-                                    value = value.toString();
-                                }
-                                break;
+                /*
+                case 'ToJson':
+                    if (value == null){
+                        value = 'null';
+                    } else {
+                        if (typeof value == 'object' && value.type == 'argument'){
+                            value = new TemplateData(value.list);
+                        }
+                    }
+                    if (value instanceof TemplateData){
+                        value = value.toJson();
+                    } else if (args.parentCtx.parentCtx && args.parentCtx.parentCtx.children[0]){
+                        let obj = {};
+                        let templateText : string = args.parentCtx.parentCtx.children[0].getText();
+                        if (templateText.startsWith('#')){
+                            obj[templateText] = this.subtemplates[templateText];
+                        } else if (templateText.startsWith('[')){
+                            obj['template'] = templateText.substr(1, templateText.length - 2);
+                        } else {
+                            obj[templateText] = value == null ? null : value;
+                        }
+                        value = JSON.stringify(obj);
+                    } else {
+                        value = value.toString();
+                    }
+                    break;
 
-                            case 'ToDate':
-                                if (value != null && typeof value == 'object' && value.type == 'date'){
-                                    value = value.moment.toObject();
-                                }
-                                let date = moment(value);
-                                if (date.isValid){
-                                    if (argValues.length == 0){
-                                        if (this.annotations.dateFormat != null){
-                                            value = date.format(this.annotations.dateFormat);
-                                        } else {
-                                            value = date.toDate().toLocaleDateString(undefined, { year: 'numeric', month: 'numeric', day: 'numeric' }); // puts out local format
-                                        }
-                                    } else {
-                                        if (argValues.length > 1 && argValues[1] == 'GMT'){
-                                            //date.subtract(date.parseZone().utcOffset(), 'minutes');
-                                            date.utc();
-                                        }
-                                        value = date.format(argValues[0]);
-                                    }
-                                }
-                                break;		
+                case 'ToDate':
+                    if (value != null && typeof value == 'object' && value.type == 'date'){
+                        value = value.moment.toObject();
+                    }
+                    let date = moment(value);
+                    if (date.isValid){
+                        if (argValues.length == 0){
+                            if (this.annotations.dateFormat != null){
+                                value = date.format(this.annotations.dateFormat);
+                            } else {
+                                value = date.toDate().toLocaleDateString(undefined, { year: 'numeric', month: 'numeric', day: 'numeric' }); // puts out local format
+                            }
+                        } else {
+                            if (argValues.length > 1 && argValues[1] == 'GMT'){
+                                //date.subtract(date.parseZone().utcOffset(), 'minutes');
+                                date.utc();
+                            }
+                            value = date.format(argValues[0]);
+                        }
+                    }
+                    break;		
+                */
+                case "@Include":
+                    string templateName = (string)argValues[0];
+                    Dictionary<string, object> oldAnnotations = this.annotations;
+                    this.annotations = (Dictionary<string, object>)value; // this method is called on higher level template's annotations, so let any @ methods modify it
+                    this.VisitNamedSubtemplateExt((RuleContext)args, templateName, true); // run the named subtemplate, preserving any loaded subtemplates
+                    this.annotations = oldAnnotations;
+                    break;
 
-                            case '@Include':
-                                let templateName = argValues[0];
-                                let oldAnnotations = this.annotations;
-                                this.annotations = value; // this method is called on higher level template's annotations, so let any @ methods modify it
-                                this.visitNamedSubtemplate(args, templateName, true); // run the named subtemplate, preserving any loaded subtemplates
-                                this.annotations = oldAnnotations;
-                                break;
-                            */
-                            case "@MissingValue":
-                                ((Dictionary<string, object>)value)["missingValue"] = argValues[0];
-                                break;
-                            /*
-                            case '@ValueFunction':
-                                if (argValues.length == 0){
-                                    delete value['valueFunction'];
-                                } else {
-                                    let valueFunction = Externals.getValueFunction(argValues[0]);
-                                    if (valueFunction){		
-                                        value['valueFunction'] = valueFunction;
-                                    } else {
-                                        this.syntaxError('Value Function not found: ' + argValues[0], args.children[0]);
-                                        delete value['valueFunction'];
-                                    }
-                                }
-                                break;
-			    */
-                            case "@BulletMode":
-                                string mode = argValues[0].ToString().ToLower();
-                                if (mode != "explicit" && mode != "implicit"){
-                                    //this.syntaxError('Invalid Bullet Mode', args.children[0]);
-                                } else {
-                                    ((Dictionary<string, object>)value).Add("bulletMode", mode);
-                                }
-                                break;
-		  	    /*
-                            case '@DateFormat':
-                                if (argValues.length == 0){
-                                    delete value['dateFormat'];
-                                } else {
-                                    value['dateFormat'] = argValues[0];
-                                    if (argValues.length > 1){
-                                        value['dateFormatMode'] = argValues[1];
-                                    }
-                                }
-                                if (argValues.length < 1){
-                                    delete value['dateFormatMode'];
-                                }
-                                break;
+                case "@MissingValue":
+                    ((Dictionary<string, object>)value)["missingValue"] = argValues[0];
+                    break;
+                /*
+                case '@ValueFunction':
+                    if (argValues.length == 0){
+                        delete value['valueFunction'];
+                    } else {
+                        let valueFunction = Externals.getValueFunction(argValues[0]);
+                        if (valueFunction){		
+                            value['valueFunction'] = valueFunction;
+                        } else {
+                            this.syntaxError('Value Function not found: ' + argValues[0], args.children[0]);
+                            delete value['valueFunction'];
+                        }
+                    }
+                    break;
+	*/
+                case "@BulletMode":
+                    string mode = argValues[0].ToString().ToLower();
+                    if (mode != "explicit" && mode != "implicit"){
+                        //this.syntaxError('Invalid Bullet Mode', args.children[0]);
+                    } else {
+                        ((Dictionary<string, object>)value).Add("bulletMode", mode);
+                    }
+                    break;
+	/*
+                case '@DateFormat':
+                    if (argValues.length == 0){
+                        delete value['dateFormat'];
+                    } else {
+                        value['dateFormat'] = argValues[0];
+                        if (argValues.length > 1){
+                            value['dateFormatMode'] = argValues[1];
+                        }
+                    }
+                    if (argValues.length < 1){
+                        delete value['dateFormatMode'];
+                    }
+                    break;
 
-                            case '@DefaultIndent':
-                                if (argValues.length == 0){
-                                    delete value['defaultIndent'];
-                                } else {
-                                    let nDefaultIndent = parseInt(argValues[0]);
-                                    if (isNaN(nDefaultIndent) || nDefaultIndent > 25 || nDefaultIndent < 1){
-                                        this.syntaxError('@DefaultIndent takes a numerical argument between 1 and 25', args);
-                                    } else {
-                                        value['defaultIndent'] = (' ' + new Array(nDefaultIndent).join(' ')); // generates a string of n blanks
-                                    }
-                                }
-                                break;
+                case '@DefaultIndent':
+                    if (argValues.length == 0){
+                        delete value['defaultIndent'];
+                    } else {
+                        let nDefaultIndent = parseInt(argValues[0]);
+                        if (isNaN(nDefaultIndent) || nDefaultIndent > 25 || nDefaultIndent < 1){
+                            this.syntaxError('@DefaultIndent takes a numerical argument between 1 and 25', args);
+                        } else {
+                            value['defaultIndent'] = (' ' + new Array(nDefaultIndent).join(' ')); // generates a string of n blanks
+                        }
+                    }
+                    break;
 
-                            case '@DateTest':
-                                if (argValues.length == 0){
-                                    delete value['dateTest'];
-                                } else if (argValues.length != 1 || argValues[0].constructor.name != 'RegExp'){
-                                    this.syntaxError('@DateTest takes a single regular expression', args.parentCtx)
-                                } else {
-                                    value['dateTest'] = argValues[0];
-                                }
-                                break;
+                case '@DateTest':
+                    if (argValues.length == 0){
+                        delete value['dateTest'];
+                    } else if (argValues.length != 1 || argValues[0].constructor.name != 'RegExp'){
+                        this.syntaxError('@DateTest takes a single regular expression', args.parentCtx)
+                    } else {
+                        value['dateTest'] = argValues[0];
+                    }
+                    break;
+    */
+                case "@BulletStyle":
+                    // TODO: verify that the style is legitimate, including roman numeral correctness
+                    for (int i = 0; i < argValues.Count; i++){
+                        if (!(argValues[i] is string)){
+                            ///this.syntaxError('ERROR: invalid argument for bullet style', args.parentCtx);
+                            argValues = null;
+                            break;
+                        }
+                    }
+                    if (((Dictionary<string, object>)value).ContainsKey("bulletStyles"))
+                    {
+                        ((Dictionary<string, object>)value).Remove("bulletStyles");
+                    }
+                    List<string> bulletStyles = new List<string>();
+                    argValues.ForEach((style) =>{
+                        bulletStyles.Add(style.ToString());
+                    });
+                    ((Dictionary<string, object>)value).Add("bulletStyles", bulletStyles);
+                    break;
+    /*
+                case '@EncodeDataFor':
+                    let encoding = argValues[0];
+                    if (argValues.length == 0){
+                        delete this.annotations['encoding'];
+                    } else if (encoding != 'html' && encoding != 'xml' && encoding != 'uri'){
+                        this.syntaxError("Parameter must be 'xml', 'html' or 'uri'", args.parentCtx);
+                    } else {
+                        this.annotations['encoding'] = encoding;
+                    }
+                    break;
 
-                            case '@BulletStyle':
-                                // TODO: verify that the style is legitimate, including roman numeral correctness
-                                for (let i = 0; i < argValues.length; i++){
-                                    if (typeof argValues[i] == 'object'){
-                                        this.syntaxError('ERROR: invalid argument for bullet style', args.parentCtx);
-                                        argValues = null;
-                                        break;
-                                    }
-                                }
-                                value['bulletStyles'] = argValues;
-                                break;
-
-                            case '@EncodeDataFor':
-                                let encoding = argValues[0];
-                                if (argValues.length == 0){
-                                    delete this.annotations['encoding'];
-                                } else if (encoding != 'html' && encoding != 'xml' && encoding != 'uri'){
-                                    this.syntaxError("Parameter must be 'xml', 'html' or 'uri'", args.parentCtx);
-                                } else {
-                                    this.annotations['encoding'] = encoding;
-                                }
-                                break;
-
-                            case '@Falsy':
-                                if (argValues.length == 0){
-                                    delete this.annotations['falsy'];
-                                } else if (argValues.length != 1 || argValues[0].constructor.name != 'RegExp'){
-                                    this.syntaxError('@Falsy takes a single regular expression', args.parentCtx)
-                                } else {
-                                    value['falsy'] = argValues[0];
-                                }
-                                break;
+                case '@Falsy':
+                    if (argValues.length == 0){
+                        delete this.annotations['falsy'];
+                    } else if (argValues.length != 1 || argValues[0].constructor.name != 'RegExp'){
+                        this.syntaxError('@Falsy takes a single regular expression', args.parentCtx)
+                    } else {
+                        value['falsy'] = argValues[0];
+                    }
+                    break;
                 */
                     default:
                         value = value + "[." + method + "(" + string.Join(", ", argValues) + ")]";

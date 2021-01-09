@@ -99,7 +99,7 @@ namespace TextTemplate
 				string bulletStyleText = bulletStyles[(int)(this.level < bulletStyles.Count ? this.level : bulletStyles.Count - 1)];
 				// support multiple numbers at one level by creating an array of styles that contain 0 or 1 number/letter/roman 
 				string concatenatedBullet = "";
-				string[] styleArray = Regex.Replace(bulletStyleText, @"+(.*?(i\:[ivxldcm]+|i|I\:[IVXLDCM]+|I|1\:\d+|1|a\:[a-z]+|a|A\:[A-Z]+|A).\S*?)", "$1").Split('\x02');
+				string[] styleArray = Regex.Replace(bulletStyleText, @"(.*?(i\:[ivxldcm]+|i|I\:[IVXLDCM]+|I|1\:\d+|1|a\:[a-z]+|a|A\:[A-Z]+|A).\S*?)", "$1").Split('\x02');
 				BulletIndent currentBulletLevel = this;
 				for (int i = styleArray.Length - 1; i >= 0 && currentBulletLevel != null; i--)
 				{
@@ -116,7 +116,7 @@ namespace TextTemplate
 					// TODO: support styles like 'I.a.1.i', '1.1.1.1' or even '1:10.1.1.1' 
 					// TODO: consider allowing \: and \\ for legitimate: 
 					// support styles like 'i', 'i:iv', 'I', 'I:LV', '1', '1:13', 'a', 'a:d', 'A', 'A:AF' 
-					if (new Regex(@"^.* (i\:[ivxldcm] +| i | I\:[IVXLDCM]+|I|1\:\d+|1|a\:[a-z]+|a|A\:[A-Z]+|A).*$", RegexOptions.Singleline).IsMatch(bulletStyle))
+					if (new Regex(@"^.*(i\:[ivxldcm]+|i|I\:[IVXLDCM]+|I|1\:\d+|1|a\:[a-z]+|a|A\:[A-Z]+|A).*$", RegexOptions.Singleline).IsMatch(bulletStyle))
 					{
 						prefix = Regex.Replace(bulletStyle, @"^(.*?)(i\:[ivxldcm]+|i|I\:[IVXLDCM]+|I|1\:\d+|1|a\:[a-z]+|a|A\:[A-Z]+|A).*$", "$1");
 						postfix = Regex.Replace(bulletStyle, @"^.*?(i\:[ivxldcm]+|i|I\:[IVXLDCM]+|I|1\:\d+|1|a\:[a-z]+|a|A\:[A-Z]+|A)(.*)$", "$2"); 
