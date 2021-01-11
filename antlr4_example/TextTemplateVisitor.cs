@@ -10,6 +10,7 @@ using System.Text.RegularExpressions;
 using System.Diagnostics;
 using System;
 using System.Text.Json;
+///using MomentSharp;
 
 namespace TextTemplate
 {
@@ -125,16 +126,21 @@ namespace TextTemplate
                 Debug.Write("Missing value for " + key);
                 string missingValue = null; ///this.annotations.missingValue ? this.annotations.missingValue.replace(/\{key\}/g, key) : null;
                 return new TypedData("missing", missingValue: missingValue, key: key);
-            } /* else if (this.annotations.dateTest != null && this.annotations.dateTest.test(key)){
-                value = {type: 'date', moment: moment(value), string: value, format: this.annotations['dateFormat']};
-                if (!value.moment.isValid()){
-                    this.syntaxError('Invalid date', ctx);
-                } else if (this.annotations['dateFormatMode'] && this.annotations['dateFormatMode'] == 'GMT'){
-                    //value.moment.subtract(value.moment.parseZone().utcOffset(), 'minutes');
-                    value.moment.utc();
+            }  else if (this.annotations.ContainsKey("dateTest") && ((Regex)annotations["dateTest"]).IsMatch(key)){
+                string dateFormat = annotations.ContainsKey("dateFormat") ? ((string)annotations["dateFormat"]) : null;
+                DateTime dt;
+                if (DateTime.TryParse(value.ToString(), out dt))
+                {
+                    if (annotations.ContainsKey("dateFormatMode") && ((string)annotations["dateFormatMode"]) == "GMT")
+                    {
+                        ///dt = MomentSharp.Parse.ToUTC(dt, dt.zone)
+                    }
+                } else {
+                    ///this.syntaxError('Invalid date', ctx);
                 }
+                value = new TypedData("date", dateString: value.ToString(), format: dateFormat);
             }
-            if (typeof value == 'string'){
+            /*if (typeof value == 'string'){
                 if (this.annotations.encoding == 'html'){
                     value = this.encodeHTML(value);
                 } else if (this.annotations.encoding == 'xml') {
@@ -240,7 +246,7 @@ namespace TextTemplate
                     if (ctx.children.Count > 1 && ctx.children[0].ChildCount > 0 && ctx.children[0].GetChild(0) is TextTemplateParser.MethodInvokedContext)
                     {
                         // there is a method invocation on a context that was created here.  We need to rerun the method(s) 
-                        IList<IParseTree> invocations = ctx.children.Skip(1).ToList<IParseTree>();
+                        IList<IParseTree> invocations = ((ParserRuleContext)ctx.GetChild(0).GetChild(0)).children.Skip(1).ToList<IParseTree>();
                         this.context = (TemplateData)this.invokeMethods(null, invocations); // a null valueContext implies this.context 
                     }
                 }
@@ -374,7 +380,7 @@ namespace TextTemplate
             foreach (IParseTree child in invocations)
             {
                 // Each child is a method and an argument(s) tree 
-                string method = (string)child.GetChild(0).Accept(this);
+                string method = child.GetChild(0) == null ? null : (string)child.GetChild(0).Accept(this);
                 if (method == null)
                 {
                     ///this.syntaxError('Invalid method syntax', child); 
@@ -408,18 +414,33 @@ namespace TextTemplate
             string value = ctx.GetText();
             return decodeApostrophe(value.Substring(1, value.Length - 2));
         }
-        /*
-        visitRegex = function(ctx) {
-            let value = ctx.GetText();
-            let expression = value.substring(1, value.lastIndexOf('/'));
-            let modifier = value.substr(value.lastIndexOf('/') + 1);
+
+        public override object VisitRegex([NotNull] TextTemplateParser.RegexContext ctx)
+        {
+            string value = ctx.GetText();
+            string expression = value.Substring(1, value.LastIndexOf("/"));
+            string modifier = value.Substring(value.LastIndexOf("/") + 1);
+            object ret = value;
             try{
-                value = new RegExp(expression, modifier);
-            } catch(e){
-                this.syntaxError('invalid regular expression', ctx);
+                RegexOptions ro = RegexOptions.ECMAScript;
+                modifier.ToCharArray().ToList().ForEach((chr) => {
+                    switch (chr)
+                    {
+                        case 'i':
+                            ro |= RegexOptions.IgnoreCase;
+                            break;
+                        case 's':
+                            ro |= RegexOptions.Singleline;
+                            break;
+                    }
+                });
+                ret = new TypedData("regex", regex: new Regex(expression, ro) , flags: modifier);
+            } catch(Exception e){
+                ///this.syntaxError('invalid regular expression', ctx);
             }
-            return value;
+            return ret;
         }
+        /*
         visitMethodInvocation = function(ctx) {
             let children : any = this.visitChildren(ctx);
             let methodName : string = children[0]
@@ -846,14 +867,15 @@ namespace TextTemplate
         
         public object callMethod(string method, object value, object args)
         {
-            object externalMethod = null;///Externals.getMethod(method); 
+            object externalMethod = null;///Externals.getMethod(method);
+            TemplateData oldContext = null;
             if (externalMethod != null)
             {
                 ///return externalMethod(value, args, this); 
             }
             List<object> argValues = new List<object>();
-	    string argsGetText = args is RuleContext ? ((RuleContext)args).GetText() : ((TerminalNodeImpl)args).GetText();
-	    int argsChildCount = args is RuleContext ? ((RuleContext)args).ChildCount : ((TerminalNodeImpl)args).ChildCount;
+            string argsGetText = args is RuleContext ? ((RuleContext)args).GetText() : ((TerminalNodeImpl)args).GetText();
+            int argsChildCount = args is RuleContext ? ((RuleContext)args).ChildCount : ((TerminalNodeImpl)args).ChildCount;
             if (args is TextTemplateParser.ConditionContext)
             {
                 // the argument is a boolean 
@@ -873,7 +895,7 @@ namespace TextTemplate
                         object arg = ((RuleContext)args).GetChild(i).Accept(this);
                         if (arg != null)
                         { // remove result of commas 
-                            if (arg is Regex)
+                            if (arg is TypedData && ((TypedData)arg).type == "regex")
                             {
                                 argValues.Add(arg);
                             }
@@ -904,7 +926,7 @@ namespace TextTemplate
                 {
                     value = string.Join("", (List<string>)value);
                 }
-                TemplateData oldContext = this.context;
+                oldContext = this.context;
                 // TODO: consider a clean context as a child of the context 
                 TemplateData newContext = new TemplateData(new Dictionary<string, object>(), this.context);
                 // add the current value as $0 and each argument as $1...n 
@@ -989,27 +1011,27 @@ namespace TextTemplate
                 || method == "IndexOf"
                 || method == "EncodeFor"
             ))
-		{
-			error = "ERROR: missing argument for " + method + ": " + argsGetText;
-		}
-		else if (argsChildCount > 1 && (
-		  method == "@DateTest"
-		  || method == "@Falsy"
-		  || method == "@DefaultIndent"
-		))
+            {
+                error = "ERROR: missing argument for " + method + ": " + argsGetText;
+            }
+            else if (argsChildCount > 1 && (
+              method == "@DateTest"
+              || method == "@Falsy"
+              || method == "@DefaultIndent"
+            ))
             {
                 error = "ERROR: invalid arguments for " + method + ": " + argsGetText;
             }
-		else if ((argsChildCount > 1 || (argsChildCount == 1 && argValues[0] == null)) && (
-		  method == "GreaterThan"
-		  || method == "LessThan"
-		  || method == "StartsWith"
-		  || method == "EndsWith"
-		  || method == "Contains"
-		  || method == "IndexOf"
-		  || method == "EncodeFor"
-		  || method == "@EncodeDataFor"
-          ))
+            else if ((argsChildCount > 1 || (argsChildCount == 1 && argValues[0] == null)) && (
+              method == "GreaterThan"
+              || method == "LessThan"
+              || method == "StartsWith"
+              || method == "EndsWith"
+              || method == "Contains"
+              || method == "IndexOf"
+              || method == "EncodeFor"
+              || method == "@EncodeDataFor"
+              ))
             {
                 error = "ERROR: invalid arguments for " + method + ": " + argsGetText;
             }
@@ -1034,18 +1056,22 @@ namespace TextTemplate
                 || method == "LastIndexOf"
                 || method == "IndexOf"
                 || method == "EncodeFor"
-            )) {
+            ))
+            {
                 value = null;
-            } else {
-                switch (method) {
+            }
+            else
+            {
+                switch (method)
+                {
                     case "ToUpper":
                         value = this.valueAsString(value).ToUpper();
                         break;
-			
+
                     case "ToLower":
                         value = this.valueAsString(value).ToLower();
                         break;
-			
+
                     case "EncodeFor":
                         switch ((string)argValues[0])
                         {
@@ -1126,9 +1152,9 @@ namespace TextTemplate
                                 int parsedRight = 0;
                                 if (arg != null && (method != "Assert" || bFirst))
                                 { // Assert only matches the first argument 
-                                    if (false)
-                                    {/// (arg.constructor.name == "RegExp"){ 
-                                        matches = matches; /// || arg.test(value); 
+                                    if (arg is TypedData && ((TypedData)arg).type == "regex")
+                                    {
+                                        matches = matches || ((TypedData)arg).regex.IsMatch((string)value);
                                     }
                                     else if ((int.TryParse(arg.ToString(), out parsedLeft) && int.TryParse(value.ToString(), out parsedRight) && parsedLeft == parsedRight) || arg.ToString() == value.ToString())
                                     {
@@ -1194,65 +1220,7 @@ namespace TextTemplate
                             value = matches;
                         }
                         break;
-                    /*
-                            let originalValue = value;
-                            if (typeof value == "string" && value.includes("\x01{.}")){
-                                // special case for matching the output of bullet templates
-                                value = this.compose([value], 1); // compose with bulleting
-                            }
-                            let matches : any = false;
-                            if (argValues.length == 0 || this.valueIsMissing(value)){
-                                if (argValues.length == 0 && this.valueIsMissing(value)){
-                                    matches = true; //TODO: is it appropriate to match nulls?
-                                }
-                            } else {
-                                let bFirst = true;
-                                argValues.forEach((arg)=>{
-                                    if (arg != null && (method != "Assert" || bFirst)){ // Assert only matches the first argument
-                                        if (arg.constructor.name == "RegExp"){
-                                            matches = matches || arg.test(value);
-                                        } else if ((!isNaN(arg) && !isNaN(value) && parseInt(arg) == parseInt(value)) || arg.toString() == value.toString()){
-                                            matches = true;
-                                        } else if (typeof arg == "string" && arg.includes("\x01{.}") && value == this.compose([arg], 1)){
-                                            matches = true;
-                                        } 
-                                        bFirst = false;
-                                    }
-                                });
-                            }
-                            if (method == "Assert"){
-                                if (matches == true){
-                                    if (argValues.length > 1){
-                                        value = argValues[1];
-                                    } else {
-                                        value = originalValue; // if the second argument is missing, return the original value
-                                    }
-                                } else if (argValues.length > 2){
-                                    value = argValues[2];
-                                } else {
-                                    let failure = "ASSERT FAILURE:\n";
-                                    let arg = argValues[0];
-                                    let i = 0;
-                                    for (; i < value.length && i < arg.length; i++){
-                                        if (value.substr(i, 1) != arg.substr(i, 1)){
-                                            break;
-                                        }
-                                    }
-                                    failure += value.substr(0, i) + "--->";
-                                    if (i == value.length){
-                                        failure += ("Missing: " + arg.substr(i));
-                                    } else if (i == arg.length){
-                                        failure += ("Unexpected: " + value.substr(i));
-                                    } else {
-                                        failure += ("Mismatch: " + value.substr(i));
-                                    }
-                                    value = failure;
-                                }
-                            } else {
-                                value = matches;
-                            }
-                            break;
-*/
+
                     case "Join":
                         if (argValues.Count > 2)
                         {
@@ -1268,7 +1236,8 @@ namespace TextTemplate
                             List<object> list = ((TypedData)value).list;
                             for (int i = 0; i < list.Count - 1; i++)
                             {
-                                if (argValues.Count > 1 && i == (list.Count - 2)) {
+                                if (argValues.Count > 1 && i == (list.Count - 2))
+                                {
                                     list[i] += (string)argValues[1];
                                 }
                                 else
@@ -1279,443 +1248,500 @@ namespace TextTemplate
                             value = string.Join("", list);
                         }
                         break;
-			
-                        case "Compose":
-                            value = this.compose(value,1);
-                            this.bulletIndent = null; // reset bulleting
-                            break;
 
-                        case "Count":
-                        case "Where":
-                            if (args is ITerminalNode || ((RuleContext)args).ChildCount == 0)
+                    case "Compose":
+                        value = this.compose(value, 1);
+                        this.bulletIndent = null; // reset bulleting
+                        break;
+
+                    case "Count":
+                    case "Where":
+                        if (args is ITerminalNode || ((RuleContext)args).ChildCount == 0)
+                        {
+                            // no arguments 
+                            if (method == "Where")
                             {
-                                // no arguments 
-                                if (method == "Where")
+                                value = "ERROR: no condition specified for .Where()";
+                                ///this. syntaxError(value, args.parentCtx); 
+                            }
+                            else if (method == "Count")
+                            {
+                                if (value == null)
                                 {
-                                    value = "ERROR: no condition specified for .Where()";
-                                    ///this. syntaxError(value, args.parentCtx); 
+                                    value = 0;
                                 }
-                                else if (method == "Count")
+                                else if (value is TemplateData && ((TemplateData)value).type == "list")
                                 {
-                                    if (value == null)
-                                    {
-                                        value = 0;
-                                    }
-                                    else if (value is TemplateData && ((TemplateData)value).type == "list")
-                                    {
-                                        value = ((TemplateData)value).Count();
-                                    }
-                                    else
-                                    {
-                                        value = 1;
-                                    }
+                                    value = ((TemplateData)value).Count();
+                                }
+                                else
+                                {
+                                    value = 1;
                                 }
                             }
-                            else
+                        }
+                        else
+                        {
+                            if (value is TemplateData)
                             {
-                                if (value is TemplateData)
-                                {
-                                    TemplateData oldContext = this.context;
-                                    // temporarily set the context to the value being evaluated 
-                                    this.context = (TemplateData)value;
-                                    Dictionary<string, object> dollarVariables = new Dictionary<string, object>();
-                                    oldContext.getKeys().ForEach((key) => {
-                                        if (key.ToString().StartsWith("$"))
-                                        {
-                                            dollarVariables[key] = oldContext.getValue(key);
-                                        }
-                                    });
-                                    List<object> result = new List<object>();
-                                    if (this.context.type == "list")
+                                oldContext = this.context;
+                                // temporarily set the context to the value being evaluated 
+                                this.context = (TemplateData)value;
+                                Dictionary<string, object> dollarVariables = new Dictionary<string, object>();
+                                oldContext.getKeys().ForEach((key) => {
+                                    if (key.ToString().StartsWith("$"))
                                     {
-                                        this.context.IterateList((TemplateData newContext) => {
-                                            this.context = newContext;
+                                        dollarVariables[key] = oldContext.getValue(key);
+                                    }
+                                });
+                                List<object> result = new List<object>();
+                                if (this.context.type == "list")
+                                {
+                                    this.context.IterateList((TemplateData newContext) => {
+                                        this.context = newContext;
+                                        dollarVariables.Keys.ToList().ForEach((key) => {
+                                            newContext.dictionary[key] = dollarVariables[key]; // pass on the $ variables 
+                                        });
+                                        object addToResult = args is ITerminalNode ? true : ((RuleContext)args).GetChild(0).Accept(this); // [0]; 
+                                        if (this.valueIsMissing(addToResult))
+                                        { // || (addToResult is string && this.annotations. ContainsKey("falsy") && this.annotations.falsy.test(addToResult))){ 
+                                            addToResult = false;
+                                        }
+                                        if (addToResult != null && !(addToResult is bool && (bool)addToResult == false))
+                                        {
+                                            // the condition returned true; add a clone of the iteration 
                                             dollarVariables.Keys.ToList().ForEach((key) => {
-                                                newContext.dictionary[key] = dollarVariables[key]; // pass on the $ variables 
+                                                newContext.dictionary.Remove(key.ToString()); // remove the added $ variables 
                                             });
-                                            object addToResult = args is ITerminalNode ? true : ((RuleContext)args).GetChild(0).Accept(this); // [0]; 
-                                            if (this.valueIsMissing(addToResult))
-                                            { // || (addToResult is string && this.annotations. ContainsKey("falsy") && this.annotations.falsy.test(addToResult))){ 
-                                                addToResult = false;
-                                            }
-                                            if (addToResult != null && !(addToResult is bool && (bool)addToResult == false))
-                                            {
-                                                // the condition returned true; add a clone of the iteration 
-                                                dollarVariables.Keys.ToList().ForEach((key) => {
-                                                    newContext.dictionary.Remove(key.ToString()); // remove the added $ variables 
-                                                });
-                                                result.Add(new TemplateData(this.context));
+                                            result.Add(new TemplateData(this.context));
 
-                                            }
-                                            this.context = oldContext;
+                                        }
+                                        this.context = oldContext;
+                                    });
+                                }
+                                else
+                                {
+                                    object filterResult = ((RuleContext)args).Accept(this);
+                                    while (filterResult is List<object> && ((List<object>)filterResult).Count == 1)
+                                    {
+                                        filterResult = ((List<object>)filterResult)[0];
+                                    }
+                                    if (filterResult != null)
+                                    {
+                                        result.Add(this.context); // no filtering (or cloning) necessary 
+                                    }
+                                }
+                                this.context = oldContext; // restore old context 
+                                if (result.Count == 0)
+                                {
+                                    string missingValue = this.annotations.ContainsKey("missingValue") ? (string)this.annotations["missingValue"] : null;
+                                    value = new TypedData("missing", missingValue: missingValue, key: "list"); // indication of missing value 
+
+                                }
+                                else
+                                {
+                                    value = new TemplateData(result, this.context);
+                                }
+                            }
+                            if (method == "Count")
+                            {
+                                if (this.valueIsMissing(value))
+                                {
+                                    value = 0;
+                                }
+                                else if (value is TemplateData && ((TemplateData)value).type == "list")
+                                {
+                                    value = ((TemplateData)value).Count();
+                                }
+                                else
+                                {
+                                    value = 1;
+                                }
+                            }
+                        }
+                        break;
+                        /* 
+                    case 'Align':
+                        if (argValues.length > 3 || argValues.length == 0 || isNaN(argValues[0]) 
+                                || (argValues.length > 1 && !(argValues[1] == 'L' || argValues[1] == 'R' || argValues[1] == 'C'))){
+                            this.syntaxError('Incorrect arguments for ' + method, args);
+                        } else {
+                            let paddingType = argValues.length == 1 ? 'L' : argValues[1];
+                            let padding = (argValues.length == 3 && argValues[2] != '') ? argValues[2].toString() : ' ';
+                            let paddingLength = parseInt(argValues[0]);
+                            value = value.toString();
+                            while (value.length < paddingLength){
+                                if (paddingType == 'L' || paddingType == 'C'){
+                                    value = (value + padding).substr(0, paddingLength);
+                                }
+                                if (paddingType == 'R' || paddingType == 'C'){
+                                    let newLength = padding.length + value.length;
+                                    // insure that multi character padding doesn't cause the actual value to be cut and the value is not larger than padding length
+                                    value = ((padding.substr(newLength > paddingLength ? newLength - paddingLength : 0)) + value).substr(0, paddingLength);
+                                }
+                            }
+                        }
+                        break;
+
+                    case 'Trim':
+                        value = value.trim();
+                        break;
+
+                    case 'StartsWith':
+                        value = value.startsWith(argValues[0]);
+                        break;
+
+                    case 'EndsWith':
+                        value = value.endsWith(argValues[0]);
+                        break;
+
+                    case 'Replace':
+                        if (typeof argValues[0] == "string"){
+                            // this is a common "replaceAll" implementation which should change when javascript replaceAll becomes standard
+                            value = value.split(argValues[0]).join(argValues[1]);
+                        } else {
+                            // presumably regex
+                            value = value.replace(argValues[0], argValues[1]);
+                        }
+                        break;
+
+                    case 'Contains':
+                        value = value.includes(argValues[0]);
+                        break;
+
+                    case 'Substr':
+                        if (argValues.length > 2 || isNaN(argValues[0]) || (argValues.length == 2 && isNaN(argValues[1]))){
+                            this.syntaxError('Incorrect arguments for ' + method, args);
+                        }
+                        if (argValues.length == 1){
+                            value = value.substr(parseInt(argValues[0]));
+                        } else {
+                            value = value.substr(parseInt(argValues[0]), parseInt(argValues[1]));
+                        }
+                        break;
+
+                    case 'LastIndexOf':
+                        value = value.toString().lastIndexOf(argValues[0]);
+                        break;
+
+                    case 'IndexOf':
+                        value = value.toString().indexOf(argValues[0])
+                        break;
+                    */
+                    case "OrderBy":
+                    case "GroupBy":
+                        if (method == "OrderBy")
+                        {
+                            if (argValues.Count == 1)
+                            {
+                                argValues.Add("A");
+                            }
+                            else if (argValues.Count == 2)
+                            {
+                                argValues[1] = argValues[1].ToString().ToUpper().Replace("ASC", "A").Replace("DESC", "D");
+                            }
+                        }
+                        oldContext = this.context;
+                        Dictionary<string, object> groups = new Dictionary<string, object>();
+                        if (method == "GroupBy" && argValues.Count == 2 && !new Regex(@"^[a-zA-Z_][a-zA-Z0-9_]*$").IsMatch(((RuleContext)args).GetChild(0).GetText()))
+                        {
+                            // A formula or other non-identifier must be aliased
+                            ///this.syntaxError("An alias (third parameter) must be provided for the GroupBy name", args.children[0]);
+                        }
+                        else if (!(value is TemplateData))
+                        {
+                            ///this.syntaxError("Invalid data type for " + method, args.parentCtx);
+                        }
+                        else if ((method == "GroupBy" && argValues.Count < 2) || (method == "OrderBy" && (argValues.Count != 2 || !(((string)argValues[1]) == "A" || ((string)argValues[1]) == "D"))))
+                        {
+                            //this.syntaxError("Invalid arguments for " + method, args.parentCtx);
+                        }
+                        else
+                        {
+                            // temporarily set the context to the value being ordered or grouped
+                            this.context = (TemplateData)value;
+                            Dictionary<string, object> dollarVariables = new Dictionary<string, object>();
+                            if (oldContext != null)
+                            {
+                                oldContext.getKeys().ForEach((key) => {
+                                    if (key.StartsWith("$"))
+                                    {
+                                        dollarVariables[key] = oldContext.getValue(key);
+                                    }
+                                });
+                            }
+                            this.context.asList().IterateList((newContext) => {
+                                this.context = newContext;
+                                dollarVariables.Keys.ToList().ForEach((key) => {
+                                    newContext.dictionary[key.ToString()] = dollarVariables[key.ToString()]; // pass on the $ variables in case they are needed for a calculaton
+                                });
+                                object groupKey = ((RuleContext)args).GetChild(0).Accept(this);
+                                if (!(groupKey is string))
+                                {
+                                    // composite probably created from a template argument that needs to be composed
+                                    groupKey = this.compose(groupKey, 1);
+                                }
+                                dollarVariables.Keys.ToList().ForEach((key) => {
+                                    newContext.dictionary.Remove(key.ToString());  // remove the added $ variables
+                                });
+                                if (!groups.ContainsKey(groupKey.ToString()))
+                                {
+                                    groups.Add(groupKey.ToString(), this.context);
+                                }
+                                else
+                                {
+                                    if (!(groups[groupKey.ToString()] is List<object>))
+                                    {
+                                        List<object> list = new List<object>();
+                                        list.Add(groupKey);
+                                        groups.Remove(groupKey.ToString());
+                                        groups.Add(groupKey.ToString(), list);
+                                    }
+                                  ((List<object>)groups[groupKey.ToString()]).Add(this.context);
+                                }
+                            });
+                            this.context = oldContext;
+                            List<object> result = new List<object>();
+                            List<string> keys = new List<string>();
+                            ((Dictionary<string, object>)groups).Keys.ToList().ForEach((key) => {
+                                keys.Add(key.ToString());
+                            });
+                            keys.Sort();
+                            if (method == "OrderBy" && ((string)argValues[1]) == "D")
+                            {
+                                keys.Reverse();
+                            }
+                            string groupingName = argValues.Count == 3 ? argValues[2].ToString() : ((RuleContext)args).GetChild(0).GetText(); // use an alias or the GroupBy identifier
+                            keys.ForEach((key) => {
+                                object group = groups[key];
+                                if (method == "OrderBy")
+                                {
+                                    if (group is List<object>)
+                                    {
+                                        ((List<object>)group).ForEach((member) => {
+                                            result.Add(member); // if there is more than one, they are key duplicates
                                         });
                                     }
                                     else
                                     {
-                                        object filterResult = ((RuleContext)args).Accept(this);
-                                        while (filterResult is List<object> && ((List<object>)filterResult).Count == 1)
-                                        {
-                                            filterResult = ((List<object>)filterResult)[0];
-                                        }
-                                        if (filterResult != null)
-                                        {
-                                            result.Add(this.context); // no filtering (or cloning) necessary 
-                                        }
-                                    }
-                                    this.context = oldContext; // restore old context 
-                                    if (result.Count == 0)
-                                    {
-                                        string missingValue = this.annotations.ContainsKey("missingValue") ? (string)this.annotations["missingValue"] : null;
-                                        value = new TypedData("missing", missingValue: missingValue, key: "list"); // indication of missing value 
-
-                                    }
-                                    else
-                                    {
-                                        value = new TemplateData(result, this.context);
+                                        result.Add(group);
                                     }
                                 }
-                                if (method == "Count")
+                                else
                                 {
-                                    if (this.valueIsMissing(value))
-                                    {
-                                        value = 0;
-                                    }
-                                    else if (value is TemplateData && ((TemplateData)value).type == "list")
-                                    {
-                                        value = ((TemplateData)value).Count();
-                                    }
-                                    else
-                                    {
-                                        value = 1;
-                                    }
+                                    // GroupBy
+                                    Dictionary<string, object> data = new Dictionary<string, object>();
+                                    data.Add(groupingName, key);
+                                    data.Add((string)argValues[1], group);
+                                    result.Add(new TemplateData(data));
                                 }
-                            }
-                            break;
-                            /* 
-                        case 'Align':
-                            if (argValues.length > 3 || argValues.length == 0 || isNaN(argValues[0]) 
-                                    || (argValues.length > 1 && !(argValues[1] == 'L' || argValues[1] == 'R' || argValues[1] == 'C'))){
-                                this.syntaxError('Incorrect arguments for ' + method, args);
-                            } else {
-                                let paddingType = argValues.length == 1 ? 'L' : argValues[1];
-                                let padding = (argValues.length == 3 && argValues[2] != '') ? argValues[2].toString() : ' ';
-                                let paddingLength = parseInt(argValues[0]);
-                                value = value.toString();
-                                while (value.length < paddingLength){
-                                    if (paddingType == 'L' || paddingType == 'C'){
-                                        value = (value + padding).substr(0, paddingLength);
-                                    }
-                                    if (paddingType == 'R' || paddingType == 'C'){
-                                        let newLength = padding.length + value.length;
-                                        // insure that multi character padding doesn't cause the actual value to be cut and the value is not larger than padding length
-                                        value = ((padding.substr(newLength > paddingLength ? newLength - paddingLength : 0)) + value).substr(0, paddingLength);
-                                    }
-                                }
-                            }
-                            break;
-
-                        case 'Trim':
-                            value = value.trim();
-                            break;
-
-                        case 'StartsWith':
-                            value = value.startsWith(argValues[0]);
-                            break;
-
-                        case 'EndsWith':
-                            value = value.endsWith(argValues[0]);
-                            break;
-
-                        case 'Replace':
-                            if (typeof argValues[0] == "string"){
-                                // this is a common "replaceAll" implementation which should change when javascript replaceAll becomes standard
-                                value = value.split(argValues[0]).join(argValues[1]);
-                            } else {
-                                // presumably regex
-                                value = value.replace(argValues[0], argValues[1]);
-                            }
-                            break;
-
-                        case 'Contains':
-                            value = value.includes(argValues[0]);
-                            break;
-
-                        case 'Substr':
-                            if (argValues.length > 2 || isNaN(argValues[0]) || (argValues.length == 2 && isNaN(argValues[1]))){
-                                this.syntaxError('Incorrect arguments for ' + method, args);
-                            }
-                            if (argValues.length == 1){
-                                value = value.substr(parseInt(argValues[0]));
-                            } else {
-                                value = value.substr(parseInt(argValues[0]), parseInt(argValues[1]));
-                            }
-                            break;
-
-                        case 'LastIndexOf':
-                            value = value.toString().lastIndexOf(argValues[0]);
-                            break;
-
-                        case 'IndexOf':
-                            value = value.toString().indexOf(argValues[0])
-                            break;
-
-                        case 'OrderBy':
-                        case 'GroupBy':
-                            if (method == 'OrderBy'){
-                                if (argValues.length == 1){
-                                    argValues.push('A');
-                                } else if (argValues.length == 2){
-                                    argValues[1] = argValues[1].toUpperCase().replace('ASC', 'A').replace('DESC','D');
-                                }
-                            }
-                            let oldContext : TemplateData = this.context;
-                            let groups = {};
-                            if (method == 'GroupBy' && argValues.length == 2 && !/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(args.children[0].getText())){
-                                // A formula or other non-identifier must be aliased
-                                this.syntaxError('An alias (third parameter) must be provided for the GroupBy name', args.children[0]);
-                            } else if (!(<any>value instanceof TemplateData)){
-                                this.syntaxError('Invalid data type for ' + method, args.parentCtx);
-                            } else if ((method == 'GroupBy' && argValues.length < 2) || (method == 'OrderBy' && (argValues.length != 2 || !(argValues[1] == 'A' || argValues[1] == 'D')))){
-                                this.syntaxError('Invalid arguments for ' + method, args.parentCtx);
-                            } else {
-                                // temporarily set the context to the value being ordered or grouped
-                                this.context = <TemplateData>value;
-                                let dollarVariables = {};
-                                if (oldContext != null){
-                                    oldContext.getKeys().forEach((key)=>{
-                                        if (key.startsWith('$')){
-                                            dollarVariables[key] = oldContext.getValue(key);
-                                        }
-                                    });
-                                }
-                                this.context.asList().iterateList((newContext)=>{
-                                    this.context = newContext;
-                                    Object.keys(dollarVariables).forEach((key)=>{
-                                        newContext.dictionary[key] = dollarVariables[key]; // pass on the $ variables in case they are needed for a calculaton
-                                    });
-                                    let groupKey = args.children[0].accept(this)[0];
-                                    if (Array.isArray(groupKey)){
-                                        // composite probably created from a template argument that needs to be composed
-                                        groupKey = this.compose(groupKey, 1);
-                                    }
-                                    Object.keys(dollarVariables).forEach((key)=>{
-                                        delete newContext.dictionary[key];  // remove the added $ variables
-                                    });
-                                    if (groups[groupKey] == null){
-                                        groups[groupKey] = this.context;
-                                    } else {
-                                        if (!Array.isArray(groups[groupKey])){
-                                            groups[groupKey] = [groups[groupKey]];
-                                        }
-                                        groups[groupKey].push(this.context);
-                                    }
-                                });
-                                this.context = oldContext;
-                                let result = [];
-                                let keys = Object.keys(groups).sort();
-                                if (method == 'OrderBy' && argValues[1] == 'D'){
-                                    keys.reverse();
-                                }
-                                let groupingName = argValues.length == 3 ? argValues[2] : args.children[0].getText(); // use an alias or the GroupBy identifier
-                                keys.forEach((key)=>{
-                                    let group = groups[key];
-                                    if (method == 'OrderBy'){
-                                        if (Array.isArray(group)){
-                                            group.forEach((member)=>{
-
-                                                result.push(member); // if there is more than one, they are key duplicates
-                                            });
-                                        } else {
-                                            result.push(group);
-                                        }
-                                    } else {
-                                        // GroupBy
-                                        let data =  {};
-                                        data[groupingName] = key;
-                                        data[argValues[1]] = group;
-                                        result.push(new TemplateData(data));
-                                    }
-                                });
-                                value = new TemplateData(result, this.context);
-                            }
-                            break;
-                        */
+                            });
+                            value = new TemplateData(result, this.context);
+                        }
+                        break;
 
                     case "IfMissing":
-                                if (value == null || (value is TypedData && ((TypedData)value).type == "missing")) {
-                                    value = argValues[0];
-                                }
-                                break;
-
-                /*
-                case 'ToJson':
-                    if (value == null){
-                        value = 'null';
-                    } else {
-                        if (typeof value == 'object' && value.type == 'argument'){
-                            value = new TemplateData(value.list);
+                        if (value == null || (value is TypedData && ((TypedData)value).type == "missing"))
+                        {
+                            value = argValues[0];
                         }
-                    }
-                    if (value instanceof TemplateData){
-                        value = value.toJson();
-                    } else if (args.parentCtx.parentCtx && args.parentCtx.parentCtx.children[0]){
-                        let obj = {};
-                        let templateText : string = args.parentCtx.parentCtx.children[0].getText();
-                        if (templateText.startsWith('#')){
-                            obj[templateText] = this.subtemplates[templateText];
-                        } else if (templateText.startsWith('[')){
-                            obj['template'] = templateText.substr(1, templateText.length - 2);
+                        break;
+
+                    /*
+                    case 'ToJson':
+                        if (value == null){
+                            value = 'null';
                         } else {
-                            obj[templateText] = value == null ? null : value;
+                            if (typeof value == 'object' && value.type == 'argument'){
+                                value = new TemplateData(value.list);
+                            }
                         }
-                        value = JSON.stringify(obj);
-                    } else {
-                        value = value.toString();
-                    }
-                    break;
-
-                case 'ToDate':
-                    if (value != null && typeof value == 'object' && value.type == 'date'){
-                        value = value.moment.toObject();
-                    }
-                    let date = moment(value);
-                    if (date.isValid){
-                        if (argValues.length == 0){
-                            if (this.annotations.dateFormat != null){
-                                value = date.format(this.annotations.dateFormat);
+                        if (value instanceof TemplateData){
+                            value = value.toJson();
+                        } else if (args.parentCtx.parentCtx && args.parentCtx.parentCtx.children[0]){
+                            let obj = {};
+                            let templateText : string = args.parentCtx.parentCtx.children[0].getText();
+                            if (templateText.startsWith('#')){
+                                obj[templateText] = this.subtemplates[templateText];
+                            } else if (templateText.startsWith('[')){
+                                obj['template'] = templateText.substr(1, templateText.length - 2);
                             } else {
-                                value = date.toDate().toLocaleDateString(undefined, { year: 'numeric', month: 'numeric', day: 'numeric' }); // puts out local format
+                                obj[templateText] = value == null ? null : value;
                             }
+                            value = JSON.stringify(obj);
                         } else {
-                            if (argValues.length > 1 && argValues[1] == 'GMT'){
-                                //date.subtract(date.parseZone().utcOffset(), 'minutes');
-                                date.utc();
-                            }
-                            value = date.format(argValues[0]);
+                            value = value.toString();
                         }
-                    }
-                    break;		
-                */
-                case "@Include":
-                    string templateName = (string)argValues[0];
-                    Dictionary<string, object> oldAnnotations = this.annotations;
-                    this.annotations = (Dictionary<string, object>)value; // this method is called on higher level template's annotations, so let any @ methods modify it
-                    this.VisitNamedSubtemplateExt((RuleContext)args, templateName, true); // run the named subtemplate, preserving any loaded subtemplates
-                    this.annotations = oldAnnotations;
-                    break;
+                        break;
+                    */
+                    case "ToDate":
+                        /*
+                        //if (value != null && typeof value == 'object' && value.type == 'date'){
+                        //    value = value.moment.toObject();
+                        //}
+                        */
+                        DateTime date;
+                        if (DateTime.TryParse(value.ToString(), out date))
+                        {
+                            if (argValues.Count == 0)
+                            {
+                                if (this.annotations.ContainsKey("dateFormat"))
+                                {
+                                    value = String.Format("{0:" + MomentJSConverter.GenerateCSharpFormatString((string)this.annotations["dateFormat"]) + "}", date);
+                                }
+                                else
+                                {
+                                    value = date.ToLongDateString(); // for now
+                                    //value = date.toDate().toLocaleDateString(undefined, { year: 'numeric', month: 'numeric', day: 'numeric' }); // puts out local format
+                                }
+                            }
+                            else
+                            {
+                                if (argValues.Count > 1 && argValues[1] == "GMT")
+                                {
+                                    //date.subtract(date.parseZone().utcOffset(), 'minutes');
+                                    //date.utc();
+                                }
+                                value = String.Format("{0:" + MomentJSConverter.GenerateCSharpFormatString((string)argValues[0]) + "}", date);
+                            }
+                        }
+                        break;
+                    case "@Include":
+                        string templateName = (string)argValues[0];
+                        Dictionary<string, object> oldAnnotations = this.annotations;
+                        this.annotations = (Dictionary<string, object>)value; // this method is called on higher level template's annotations, so let any @ methods modify it
+                        this.VisitNamedSubtemplateExt((RuleContext)args, templateName, true); // run the named subtemplate, preserving any loaded subtemplates
+                        this.annotations = oldAnnotations;
+                        break;
 
-                case "@MissingValue":
-                    ((Dictionary<string, object>)value)["missingValue"] = argValues[0];
-                    break;
-                /*
-                case '@ValueFunction':
-                    if (argValues.length == 0){
-                        delete value['valueFunction'];
-                    } else {
-                        let valueFunction = Externals.getValueFunction(argValues[0]);
-                        if (valueFunction){		
-                            value['valueFunction'] = valueFunction;
-                        } else {
-                            this.syntaxError('Value Function not found: ' + argValues[0], args.children[0]);
+                    case "@MissingValue":
+                        ((Dictionary<string, object>)value)["missingValue"] = argValues[0];
+                        break;
+                    /*
+                    case '@ValueFunction':
+                        if (argValues.length == 0){
                             delete value['valueFunction'];
-                        }
-                    }
-                    break;
-	*/
-                case "@BulletMode":
-                    string mode = argValues[0].ToString().ToLower();
-                    if (mode != "explicit" && mode != "implicit"){
-                        //this.syntaxError('Invalid Bullet Mode', args.children[0]);
-                    } else {
-                        ((Dictionary<string, object>)value).Add("bulletMode", mode);
-                    }
-                    break;
-	/*
-                case '@DateFormat':
-                    if (argValues.length == 0){
-                        delete value['dateFormat'];
-                    } else {
-                        value['dateFormat'] = argValues[0];
-                        if (argValues.length > 1){
-                            value['dateFormatMode'] = argValues[1];
-                        }
-                    }
-                    if (argValues.length < 1){
-                        delete value['dateFormatMode'];
-                    }
-                    break;
-
-                case '@DefaultIndent':
-                    if (argValues.length == 0){
-                        delete value['defaultIndent'];
-                    } else {
-                        let nDefaultIndent = parseInt(argValues[0]);
-                        if (isNaN(nDefaultIndent) || nDefaultIndent > 25 || nDefaultIndent < 1){
-                            this.syntaxError('@DefaultIndent takes a numerical argument between 1 and 25', args);
                         } else {
-                            value['defaultIndent'] = (' ' + new Array(nDefaultIndent).join(' ')); // generates a string of n blanks
+                            let valueFunction = Externals.getValueFunction(argValues[0]);
+                            if (valueFunction){		
+                                value['valueFunction'] = valueFunction;
+                            } else {
+                                this.syntaxError('Value Function not found: ' + argValues[0], args.children[0]);
+                                delete value['valueFunction'];
+                            }
                         }
-                    }
-                    break;
-
-                case '@DateTest':
-                    if (argValues.length == 0){
-                        delete value['dateTest'];
-                    } else if (argValues.length != 1 || argValues[0].constructor.name != 'RegExp'){
-                        this.syntaxError('@DateTest takes a single regular expression', args.parentCtx)
-                    } else {
-                        value['dateTest'] = argValues[0];
-                    }
-                    break;
-    */
-                case "@BulletStyle":
-                    // TODO: verify that the style is legitimate, including roman numeral correctness
-                    for (int i = 0; i < argValues.Count; i++){
-                        if (!(argValues[i] is string)){
-                            ///this.syntaxError('ERROR: invalid argument for bullet style', args.parentCtx);
-                            argValues = null;
-                            break;
+                        break;
+        */
+                    case "@BulletMode":
+                        string mode = argValues[0].ToString().ToLower();
+                        if (mode != "explicit" && mode != "implicit")
+                        {
+                            //this.syntaxError('Invalid Bullet Mode', args.children[0]);
                         }
-                    }
-                    if (((Dictionary<string, object>)value).ContainsKey("bulletStyles"))
-                    {
-                        ((Dictionary<string, object>)value).Remove("bulletStyles");
-                    }
-                    List<string> bulletStyles = new List<string>();
-                    argValues.ForEach((style) =>{
-                        bulletStyles.Add(style.ToString());
-                    });
-                    ((Dictionary<string, object>)value).Add("bulletStyles", bulletStyles);
-                    break;
-    /*
-                case '@EncodeDataFor':
-                    let encoding = argValues[0];
-                    if (argValues.length == 0){
-                        delete this.annotations['encoding'];
-                    } else if (encoding != 'html' && encoding != 'xml' && encoding != 'uri'){
-                        this.syntaxError("Parameter must be 'xml', 'html' or 'uri'", args.parentCtx);
-                    } else {
-                        this.annotations['encoding'] = encoding;
-                    }
-                    break;
+                        else
+                        {
+                            ((Dictionary<string, object>)value).Add("bulletMode", mode);
+                        }
+                        break;
 
-                case '@Falsy':
-                    if (argValues.length == 0){
-                        delete this.annotations['falsy'];
-                    } else if (argValues.length != 1 || argValues[0].constructor.name != 'RegExp'){
-                        this.syntaxError('@Falsy takes a single regular expression', args.parentCtx)
-                    } else {
-                        value['falsy'] = argValues[0];
-                    }
-                    break;
-                */
+                    case "@DateFormat":
+                        if (((Dictionary<string, object>)value).ContainsKey("dateFormate"))
+                        {
+                            ((Dictionary<string, object>)value).Remove("dateFormat");
+                        }
+                        if (((Dictionary<string, object>)value).ContainsKey("dateFormatMode"))
+                        {
+                            ((Dictionary<string, object>)value).Remove("dateFormatMode");
+                        }
+                        if (argValues.Count > 0)
+                        {
+                            ((Dictionary<string, object>)value).Add("dateFormat", argValues[0]);
+                        }
+                        if (argValues.Count > 1)
+                        {
+                            ((Dictionary<string, object>)value).Add("dateFormatMode", argValues[0]);
+                        }
+                        break;
+                    /*
+                    case '@DefaultIndent':
+                        if (argValues.length == 0){
+                            delete value['defaultIndent'];
+                        } else {
+                            let nDefaultIndent = parseInt(argValues[0]);
+                            if (isNaN(nDefaultIndent) || nDefaultIndent > 25 || nDefaultIndent < 1){
+                                this.syntaxError('@DefaultIndent takes a numerical argument between 1 and 25', args);
+                            } else {
+                                value['defaultIndent'] = (' ' + new Array(nDefaultIndent).join(' ')); // generates a string of n blanks
+                            }
+                        }
+                        break;
+                    */
+                    case "@DateTest":
+                        if (((Dictionary<string, object>)value).ContainsKey("dateTest"))
+                        {
+                            ((Dictionary<string, object>)value).Remove("dateTest");
+                        }
+                        if (argValues.Count != 1 || (argValues.Count > 0 && !(argValues[0] is TypedData && ((TypedData)argValues[0]).type == "regex")))
+                        {
+                            ///this.syntaxError('@DateTest takes a single regular expression', args.parentCtx)
+                        }
+                        else
+                        {
+                            ((Dictionary<string, object>)value).Add("dateTest", ((TypedData)argValues[0]).regex);
+                        }
+                        break;
+
+                    case "@BulletStyle":
+                        // TODO: verify that the style is legitimate, including roman numeral correctness
+                        for (int i = 0; i < argValues.Count; i++)
+                        {
+                            if (!(argValues[i] is string))
+                            {
+                                ///this.syntaxError('ERROR: invalid argument for bullet style', args.parentCtx);
+                                argValues = null;
+                                break;
+                            }
+                        }
+                        if (((Dictionary<string, object>)value).ContainsKey("bulletStyles"))
+                        {
+                            ((Dictionary<string, object>)value).Remove("bulletStyles");
+                        }
+                        List<string> bulletStyles = new List<string>();
+                        argValues.ForEach((style) => {
+                            bulletStyles.Add(style.ToString());
+                        });
+                        ((Dictionary<string, object>)value).Add("bulletStyles", bulletStyles);
+                        break;
+                    /*
+                    case '@EncodeDataFor':
+                        let encoding = argValues[0];
+                        if (argValues.length == 0){
+                            delete this.annotations['encoding'];
+                        } else if (encoding != 'html' && encoding != 'xml' && encoding != 'uri'){
+                            this.syntaxError("Parameter must be 'xml', 'html' or 'uri'", args.parentCtx);
+                        } else {
+                            this.annotations['encoding'] = encoding;
+                        }
+                        break;
+
+                    case '@Falsy':
+                        if (argValues.length == 0){
+                            delete this.annotations['falsy'];
+                        } else if (argValues.length != 1 || argValues[0].constructor.name != 'RegExp'){
+                            this.syntaxError('@Falsy takes a single regular expression', args.parentCtx)
+                        } else {
+                            value['falsy'] = argValues[0];
+                        }
+                        break;
+                    */
                     default:
                         value = value + "[." + method + "(" + string.Join(", ", argValues) + ")]";
                         //this.syntaxError("ERROR: unknown function: ." + method + "(" + argValues.join(", ") + ")", args.parentCtx); 
                         break;
                 }
             }
-            if (error != null) {
+            if (error != null)
+            {
                 ///this.syntaxError(error, parentCtx);
                 return "";
             }
@@ -1774,7 +1800,8 @@ namespace TextTemplate
                 case "BracketedTemplateSpec":
                 case "TemplateToken":
                     templateParts.Add(indent + ctxName);
-                    for (int i = 1; i < ctx.ChildCount - 1; i++) {
+                    for (int i = 1; i < ctx.ChildCount - 1; i++)
+                    {
                         templateParts.Add(this.getParseTree((ParserRuleContext)ctx.children[i], indentBlanks + indent));
                     }
                     break;

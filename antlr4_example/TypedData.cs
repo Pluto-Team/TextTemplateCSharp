@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Text.RegularExpressions;
 
 namespace TextTemplate
 {
@@ -17,7 +18,11 @@ namespace TextTemplate
         public string bullet;
         public int? level = null;
         public int? length;
-        public TypedData(string type, string missingValue = null, string key = null, List<object> list = null, string defaultIndent = null, object parts = null, string bullet = "", int? length = null)
+        public Regex regex;
+        public string flags = null;
+        public string format = null;
+        public string dateString = null;
+        public TypedData(string type, string missingValue = null, string key = null, List<object> list = null, string defaultIndent = null, object parts = null, string bullet = "", int? length = null, Regex regex = null, string flags = null, string dateString = null, string format = null)
         {
             this.type = type;
             this.missingValue = missingValue;
@@ -27,6 +32,10 @@ namespace TextTemplate
             this.bullet = bullet;
             this.parts = parts;
             this.length = length;
+            this.regex = regex;
+            this.flags = flags;
+            this.format = format;
+            this.dateString = dateString;
         }
     }
 }

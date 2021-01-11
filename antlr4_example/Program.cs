@@ -13,9 +13,9 @@ namespace TestTextTemplates
 		{
 			//try
 			//{
-				string input;
-				//input = @"{'{""hello"":""world""}':[{""hello""} {hello}]}";
-				input = @"// data context:
+			string input;
+			//input = @"{'{""hello"":""world""}':[{""hello""} {hello}]}";
+			input = @"// data context:
 {'{""firstName"": ""Robert"", ""lastName"": ""Smith"", ""pets"":[
 {""type"":""dog"", ""name"": ""Toto""}
 ,{""type"":""cat"", ""name"": ""Dolly""}
@@ -102,16 +102,38 @@ Subtemplates:
 {#style4:[].@BulletStyle('')}
 {#style5:[].@BulletStyle(' I', '•', 'A.', '(1)')}
 {#data:[/data/people]}";
+			string XXinput = @"{[{'/data/events'.GroupBy(start.ToDate(), 'group', 'start'):[ `
+{start.ToUpper()} 
+   {group.OrderBy(start.ToDate('HHmm')):[{start.#formatTimes(end)}: {summary} 
+      {.} Notes: {description}
+      {.} Location {location}]}
+].@DateTest(/(star|end)/i).@BulletStyle('•').@DateFormat('dddd MMM D')}].@DateFormat('YYYYMMDD')}
+Subtemplates:
+{#SameDay:[{$0.ToDate('YYYYMMDD') = $1.ToDate('YYYYMMDD')}]}
+{#SameAMPM:[{$0.ToDate('a') = $1.ToDate('a') & $0.#SameDay($1)}]}
+{#onHour:[{$0.ToDate('mm') = '00'}]}
+{#formatTimes:[
+   {
+   // Don't put am/pm for the start time if on the hour and same as end
+   $0.ToDate([h{!$0.#onHour()->[:mm]}{!$0.#SameAMPM($1)->[a]}])
+   }-{
+   !$1.#SameDay($0)->[{$1.ToDate().ToUpper()} at ]}{$1.ToDate('h:mma')
+   }
+]}";
 			input = input.Replace("\r", "");
-				AntlrInputStream inputStream = new AntlrInputStream(input);
-				TextTemplateLexer textTemplateLexer = new TextTemplateLexer(inputStream);
-				CommonTokenStream commonTokenStream = new CommonTokenStream(textTemplateLexer);
-				TextTemplateParser textTemplateParser = new TextTemplateParser(commonTokenStream);
-				TextTemplateParser.CompilationUnitContext compilationUnitContext = textTemplateParser.compilationUnit();
-				TextTemplateVisitor visitor = new TextTemplateVisitor();
-				Func<string, string> urlCallback = url =>
+			AntlrInputStream inputStream = new AntlrInputStream(input);
+			TextTemplateLexer textTemplateLexer = new TextTemplateLexer(inputStream);
+			CommonTokenStream commonTokenStream = new CommonTokenStream(textTemplateLexer);
+			TextTemplateParser textTemplateParser = new TextTemplateParser(commonTokenStream);
+			TextTemplateParser.CompilationUnitContext compilationUnitContext = textTemplateParser.compilationUnit();
+			TextTemplateVisitor visitor = new TextTemplateVisitor();
+			Func<string, string> urlCallback = url =>
+			{
+				string ret = "Bad Url";
+				switch (url)
 				{
-					return @"[
+					case "/data/people":
+						ret = @"[
 	{
 	   ""firstName"": ""Doris""
 	   ,""lastName"": ""Johnson""
@@ -145,10 +167,22 @@ Subtemplates:
 	   ]
 	}
 ]";
-				};
-				string result = visitor.interpret(input, urlCallback);
-				Debug.Write(result + "\n");
-				Console.Write(result + "\n");
+						break;
+					case "/data/events":
+						ret = @"[
+	{""start"": ""2020-05-20T19:00:00"", ""end"": ""2020-05-20T22:30:00"",""summary"": ""Dinner with Mom"", ""description"":""Dresscode: Elegant and ironed!"", ""location"": ""800 Howard St., San Francisco, CA 94103""}, 
+	{""start"": ""2020-06-20T15:00:00"", ""end"": ""2020-06-22T15:30:00"",""summary"": ""Hotdog eating competition"", ""location"": ""43 Chapel Ave, Jersey City, NJ 07305""}, 
+	{""start"": ""2020-05-28T10:00:00"", ""end"": ""2020-05-28T12:15:00"",""summary"": ""Vet"", ""description"":""Brush the dog's teeth"", ""location"": ""3771 Van Dyke Ave San Diego, CA 92105""}, 
+	{""start"": ""2020-05-28T08:30:00"", ""end"": ""2020-05-28T10:00:00"",""summary"": ""Meet with Paul"", ""description"":""Discussion of future plans"", ""location"": ""1200 Railing St., Brunswick, Md.""}, 
+	{""start"": ""2020-06-30T10:00:00"", ""end"": ""2020-06-30T11:30:00"",""summary"": ""Jogging class"", ""description"":""Bring your inhaler"", ""location"": ""3014 Rosalinda San Clemente, CA 92673""}
+]";
+						break;
+				}
+				return ret;
+			};
+			string result = visitor.interpret(input, urlCallback);
+			Debug.Write(result + "\n");
+			Console.Write(result + "\n");
 			//object interpolated = (string)visitor.Visit(compilationUnitContext);
 			//Debug.Write(interpolated);
 			//Console.Write(interpolated);
