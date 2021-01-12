@@ -2169,7 +2169,7 @@ namespace TextTemplate
                         if (!DateTime.TryParse(((TypedData)value).dateString, out dt)){
                         	return ((TypedData)value).dateString; // put out the original value 
                         } else if (((TypedData)value).format == null){ 
-                        	return dt.ToString(); /// put out local format 
+                        	return dt.ToShortDateString(); /// put out local format 
                         } else {
                             string dtString = dt.ToString(MomentJSConverter.GenerateCSharpFormatString(((TypedData)value).format + " "));
                             return dtString.Substring(0, dtString.Length - 1);
