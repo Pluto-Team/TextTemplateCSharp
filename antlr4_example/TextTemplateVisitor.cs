@@ -1131,7 +1131,7 @@ namespace TextTemplate
                     case "Assert":
                     case "Matches":
                         object originalValue = value;
-                        if (value is string && ((string)value).Contains("\x0l{.}"))
+                        if (value is string && ((string)value).Contains("\x01{.}"))
                         {
                             // special case for matching the output of bullet templates 
                             List<object> composeArray = new List<object>();
@@ -2211,7 +2211,8 @@ namespace TextTemplate
                 else
                 {
                     if (output.mode == 1)
-                    { // only handle bullets on the final composition 
+                    { // only handle bullets on the final composition
+		    	string bulletMode = annotations.ContainsKey("bulletMode") ? annotations["bulletMode"] : "implicit";
                         if (new Regex(@"^[ \t]*\x01\{\.\}").IsMatch(text))
                         {
                             // there is a bullet in the text 
@@ -2243,8 +2244,8 @@ namespace TextTemplate
                             }
                             text = Regex.Replace(text, @"[ \t]*\x01\{\.\}", indent + (this.bulletIndent != null ? this.bulletIndent.getBullet() : ""));
                         }
-                        else if (this.bulletIndent != null && new Regex(@"\S").IsMatch(text) && false)
-                        { /// && this.annotations.bulletMode == "implicit") {
+                        else if (this.bulletIndent != null && new Regex(@"\S").IsMatch(text) && bulletMode == "implicit")
+			{
                             // there is a non-bulleted line in the output; see if it should reset bulleting levels because it is less indented then the bullet(s)
                             string nextLineIndent = Regex.Replace(text, @"^([ \t]*).*$", "$1"); // TODO: Should this be an option? 
                             while (this.bulletIndent != null && this.bulletIndent.indent.Length > nextLineIndent.Length)
