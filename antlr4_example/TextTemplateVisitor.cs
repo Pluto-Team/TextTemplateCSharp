@@ -511,18 +511,21 @@ namespace TextTemplate
         {
             return this.VisitIdentifierWithParserRuleContext(ctx);
         }
+        public override object VisitLogicalOperator([NotNull] TextTemplateParser.LogicalOperatorContext ctx)
+        {
+            object ret;
+            string logicalOperator = (string)ctx.children[1].GetText();
+            bool leftCondition = (bool)ctx.children[0].Accept(this);
+            if (!leftCondition && logicalOperator == "&"){
+                ret = false;
+            } else if (leftCondition && logicalOperator == "|") {
+                ret = true;
+            } else {
+                ret = ctx.children[2].Accept(this);
+            }
+            return ret;
+        }
         /*
-        visitLogicalOperator = function(ctx) {
-            let operator : string = ctx.children[1].GetText() 
-            let leftCondition : boolean = ctx.children[0].accept(this);
-            if (!leftCondition && operator == '&'){
-                return false;
-            }
-            if (leftCondition && operator == '|') {
-                return true;
-            }
-            return ctx.children[2].accept(this);
-        };
         visitIdentifierOperand = function(ctx){
             return this.visitIdentifier(ctx);
         }
