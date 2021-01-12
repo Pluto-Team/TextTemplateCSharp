@@ -2212,7 +2212,7 @@ namespace TextTemplate
                 {
                     if (output.mode == 1)
                     { // only handle bullets on the final composition
-		    	string bulletMode = annotations.ContainsKey("bulletMode") ? annotations["bulletMode"] : "implicit";
+		    	    string bulletMode = annotations.ContainsKey("bulletMode") ? (string)annotations["bulletMode"] : "implicit";
                         if (new Regex(@"^[ \t]*\x01\{\.\}").IsMatch(text))
                         {
                             // there is a bullet in the text 
