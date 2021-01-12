@@ -102,12 +102,12 @@ Subtemplates:
 {#style4:[].@BulletStyle('')}
 {#style5:[].@BulletStyle(' I', '•', 'A.', '(1)')}
 {#data:[/data/people]}";
-			string XXinput = @"{[{'/data/events'.GroupBy(start.ToDate(), 'group', 'start'):[ `
+			input = @"{'/data/events'.GroupBy(start.ToDate('YYYY-MM-DDT00:00:00'), 'group', 'start'):[ `
 {start.ToUpper()} 
    {group.OrderBy(start.ToDate('HHmm')):[{start.#formatTimes(end)}: {summary} 
       {.} Notes: {description}
       {.} Location {location}]}
-].@DateTest(/(star|end)/i).@BulletStyle('•').@DateFormat('dddd MMM D')}].@DateFormat('YYYYMMDD')}
+].@DateTest(/(star|end)/i).@BulletStyle('•').@DateFormat('dddd MMM D')}
 Subtemplates:
 {#SameDay:[{$0.ToDate('YYYYMMDD') = $1.ToDate('YYYYMMDD')}]}
 {#SameAMPM:[{$0.ToDate('a') = $1.ToDate('a') & $0.#SameDay($1)}]}

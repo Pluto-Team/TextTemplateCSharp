@@ -22,7 +22,7 @@ namespace TextTemplate
 			{
 				if (((string)jsonData).StartsWith("{"))
 				{
-					json = JsonSerializer.Deserialize<Dictionary<string,object>>((string)jsonData);
+					json = JsonSerializer.Deserialize<Dictionary<string, object>>((string)jsonData);
 				}
 				else if (((string)jsonData).StartsWith("["))
 				{
@@ -33,15 +33,14 @@ namespace TextTemplate
 					// TemplateData supports arrays of strings by making them lists of dictionaries with a single element
 					json = JsonSerializer.Deserialize<dynamic>("{\"_\": \"" + ((string)jsonData).Replace("\"", "\\\"") + "\"}");
 				}
-				/*} else if (Array.isArray(jsonData)) { 
-					this. type = 'list'; 
-					let array: [] = jsonData; 
-					array.forEach((item) => { 
-					this.list.push(new TemplateData(item, this)); 
-					}) ; 
-					this.parent = parent; 
-					return; 
-					*/
+			}
+			else if (jsonData is List<object>) {
+				this.type = "list";
+				((List<object>)jsonData).ForEach((item) => {
+					this.list.Add(new TemplateData(item, this));
+				});
+				this.parent = parent;
+				return;
 			}
 			else if (jsonData is TemplateData)
 			{
@@ -93,18 +92,29 @@ namespace TextTemplate
 								   value = value.ToString();
 								   this.dictionary[keyname] = value;
 								   break;
+
 							   case "Array":
 								   if (((JsonElement)value).GetArrayLength() != 0)
 								   {
-									   this.dictionary[keyname] = new TemplateData(value, this);
+									   this.dictionary[keyname] = new TemplateData(value.ToString(), this);
 								   }
 								   break;
+
+							   case "Object":
+								   this.dictionary[keyname] = new TemplateData(value.ToString(), this);
+								   break;
+
 							   default:
 								   string oops = "oops";
 								   break;
 							}
                        }
-					   else
+					   else if (value is List<object> && ((List<object>)value).Count > 0)
+                       {
+						   this.dictionary[keyname] = new TemplateData(value, this);
+
+					   }
+					   else if (!(value is List<object>) && value != null) // don't add null values or empty arrays
 					   {
 						   this.dictionary[keyname] = value;
 					   }
@@ -143,14 +153,10 @@ namespace TextTemplate
 		}
 		public void IterateList(Action<TemplateData> fn)
 		{
-			type = "dictionary"; // temporarily change iteration to a dictionary
-		foreach (TemplateData item in list)
+			foreach (TemplateData item in list)
 			{
-				dictionary = item.dictionary;
-				fn(this);
+				fn(item);
 			}
-			type = "list"; // revert back to being a list
-			dictionary = new Dictionary<string, object>();
 		}
 		public long Count()
 		{

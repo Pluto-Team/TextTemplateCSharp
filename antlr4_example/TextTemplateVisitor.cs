@@ -418,7 +418,7 @@ namespace TextTemplate
         public override object VisitRegex([NotNull] TextTemplateParser.RegexContext ctx)
         {
             string value = ctx.GetText();
-            string expression = value.Substring(1, value.LastIndexOf("/"));
+            string expression = value.Substring(1, value.LastIndexOf("/") - 1);
             string modifier = value.Substring(value.LastIndexOf("/") + 1);
             object ret = value;
             try{
@@ -467,10 +467,13 @@ namespace TextTemplate
         */
         public override object VisitBracedThinArrow([NotNull] TextTemplateParser.BracedThinArrowContext ctx)
         {
-            string oldMissingValue = (string)this.annotations["missingValue"];
+            string oldMissingValue = this.annotations.ContainsKey("missingValue") ? (string)this.annotations["missingValue"] : null;
             this.annotations.Remove("missingValue"); // predicates need to see the absense of a value
             object result = ctx.children[0].Accept(this);
-            this.annotations["missingValue"] = oldMissingValue;
+            if (oldMissingValue != null)
+            {
+                this.annotations["missingValue"] = oldMissingValue;
+            }
             if (result is bool && ((bool)result) == true && ctx.children[2].ChildCount > 0)
             {
                 // protect against invalid syntax
@@ -942,7 +945,7 @@ namespace TextTemplate
                     {
                         if ((((TypedData)argObject).type) == "date")
                         {
-                            ///newContext.add("$" + (i + 1), argObject.string); // provide the original string value 
+                            newContext.add("$" + (i + 1), ((TypedData)argObject).dateString); // provide the original string value 
                         }
                         else if ((((TypedData)argObject).type) == "list")
                         {
@@ -1493,11 +1496,11 @@ namespace TextTemplate
                                     if (!(groups[groupKey.ToString()] is List<object>))
                                     {
                                         List<object> list = new List<object>();
-                                        list.Add(groupKey);
+                                        list.Add(groups[groupKey.ToString()]);
                                         groups.Remove(groupKey.ToString());
                                         groups.Add(groupKey.ToString(), list);
                                     }
-                                  ((List<object>)groups[groupKey.ToString()]).Add(this.context);
+                                    ((List<object>)groups[groupKey.ToString()]).Add(this.context);
                                 }
                             });
                             this.context = oldContext;
@@ -1575,11 +1578,9 @@ namespace TextTemplate
                         break;
                     */
                     case "ToDate":
-                        /*
-                        //if (value != null && typeof value == 'object' && value.type == 'date'){
-                        //    value = value.moment.toObject();
-                        //}
-                        */
+                        if (value is TypedData && ((TypedData)value).type == "date"){
+                            value = ((TypedData)value).dateString;
+                        }
                         DateTime date;
                         if (DateTime.TryParse(value.ToString(), out date))
                         {
@@ -1587,11 +1588,12 @@ namespace TextTemplate
                             {
                                 if (this.annotations.ContainsKey("dateFormat"))
                                 {
-                                    value = String.Format("{0:" + MomentJSConverter.GenerateCSharpFormatString((string)this.annotations["dateFormat"]) + "}", date);
+                                    string dtString = date.ToString(MomentJSConverter.GenerateCSharpFormatString((string)this.annotations["dateFormat"] + " "));
+                                    value = dtString.Substring(0, dtString.Length - 1);
                                 }
                                 else
                                 {
-                                    value = date.ToLongDateString(); // for now
+                                    value = date.ToShortDateString(); // for now
                                     //value = date.toDate().toLocaleDateString(undefined, { year: 'numeric', month: 'numeric', day: 'numeric' }); // puts out local format
                                 }
                             }
@@ -1602,7 +1604,8 @@ namespace TextTemplate
                                     //date.subtract(date.parseZone().utcOffset(), 'minutes');
                                     //date.utc();
                                 }
-                                value = String.Format("{0:" + MomentJSConverter.GenerateCSharpFormatString((string)argValues[0]) + "}", date);
+                                string dtString = date.ToString(MomentJSConverter.GenerateCSharpFormatString((string)argValues[0] + " "));
+                                value = dtString.Substring(0, dtString.Length - 1);
                             }
                         }
                         break;
@@ -1645,7 +1648,7 @@ namespace TextTemplate
                         break;
 
                     case "@DateFormat":
-                        if (((Dictionary<string, object>)value).ContainsKey("dateFormate"))
+                        if (((Dictionary<string, object>)value).ContainsKey("dateFormat"))
                         {
                             ((Dictionary<string, object>)value).Remove("dateFormat");
                         }
@@ -2162,16 +2165,15 @@ namespace TextTemplate
                         return this.valueAsString(((TypedData)value).list[0]);
                         break;
                     case "date":
-                        /* 
-                        if (!value.moment.isValid()){ 
-                        	return value.string; // put out the original value 
-                        } else if (value.format == null){ 
-                        	return value.moment.toDate().toLocaleDateString(undefined, { year: "numeric". month: "numeric". day: "numeric" }); // put out local format 
-                        } else { 
-                        	return value.moment.format(value.format); 
+                        DateTime dt;
+                        if (!DateTime.TryParse(((TypedData)value).dateString, out dt)){
+                        	return ((TypedData)value).dateString; // put out the original value 
+                        } else if (((TypedData)value).format == null){ 
+                        	return dt.ToString(); /// put out local format 
+                        } else {
+                            string dtString = dt.ToString(MomentJSConverter.GenerateCSharpFormatString(((TypedData)value).format + " "));
+                            return dtString.Substring(0, dtString.Length - 1);
                         } 
-                        */
-                        return "<<<DATE>>>"; /// temporarily 
                         break;
                 }
             }
