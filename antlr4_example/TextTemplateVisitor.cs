@@ -90,28 +90,28 @@ namespace TextTemplate
             object value = null;
             if (key == "@")
             {
-                ///return new TemplateData(JSON.stringify(this.annotations), this.context); 
+                return new TemplateData(JsonSerializer.Serialize(this.annotations), this.context);
             }
             else if (key.StartsWith("@.")) {
                 /*
-                       if (key == '@.Tokens' || key == '@.Tree'){
-                           let parentName;
-                           let parent = ctx;
-                           do {
-                               parentName = parent.constructor.name.replace(/Context$/,'');
-                               parent = parent.parentCtx;
-                           } while (parent != null && parentName != 'TemplateContents');
-                           if (parent != null){
-                               // the parent of the template contents is a template.  
-                               if (key == '@.Tokens'){
-                                   // Return the contents without the tokens the "@.Tokens"
-                                   return tokensAsString(parent).replace(' LBRACE({) IDENTIFIER(@) DOT(.) IDENTIFIER(Tokens) RBRACE(})','');
-                               }
-                               return this.getParseTree(parent);
-                           }
-                       }
-                       value = this.annotations[key.substr(2)];
-               */
+                if (key == '@.Tokens' || key == '@.Tree'){
+                    let parentName;
+                    let parent = ctx;
+                    do {
+                        parentName = parent.constructor.name.replace(/Context$/,'');
+                        parent = parent.parentCtx;
+                    } while (parent != null && parentName != 'TemplateContents');
+                    if (parent != null){
+                        // the parent of the template contents is a template.  
+                        if (key == '@.Tokens'){
+                            // Return the contents without the tokens the "@.Tokens"
+                            return tokensAsString(parent).replace(' LBRACE({) IDENTIFIER(@) DOT(.) IDENTIFIER(Tokens) RBRACE(})','');
+                        }
+                        return this.getParseTree(parent);
+                    }
+                }
+                */
+                value = this.annotations[key.Substring(2)];
             }
             else if (this.context == null || !(this.context is TemplateData))
             {
@@ -124,7 +124,7 @@ namespace TextTemplate
             if (value == null)
             {
                 Debug.Write("Missing value for " + key);
-                string missingValue = null; ///this.annotations.missingValue ? this.annotations.missingValue.replace(/\{key\}/g, key) : null;
+                string missingValue = annotations.ContainsKey("missingValue") ? ((string)annotations["missingValue"]).Replace("{key}", key) : null;
                 return new TypedData("missing", missingValue: missingValue, key: key);
             }  else if (this.annotations.ContainsKey("dateTest") && ((Regex)annotations["dateTest"]).IsMatch(key)){
                 string dateFormat = annotations.ContainsKey("dateFormat") ? ((string)annotations["dateFormat"]) : null;
@@ -155,11 +155,6 @@ namespace TextTemplate
         {
             // there are three children, the left brace, the token, and the right brace 
             object result = ctx.children[1].Accept(this);
-            /* 
-            if (Array.isArray(result) && result.length == 1){
-                return result[0];
-            }
-            */
             return result;
         }
         public override object VisitTemplateContents([NotNull] TextTemplateParser.TemplateContentsContext ctx)
@@ -914,7 +909,7 @@ namespace TextTemplate
                 }
             }
             RuleContext parentCtx = args is RuleContext ? ((RuleContext)args).Parent : null;
-            if (!(value is string) && (/// !(value != null && type of value == "object" && value.type == "date") && (
+            if (!(value is string) && !(value is TypedData && ((TypedData)value).type == "date") && (
             method == "ToUpper"
             || method == "ToLower"
             || method == "Trim"
@@ -1366,74 +1361,115 @@ namespace TextTemplate
                             }
                         }
                         break;
-                        /* 
-                    case 'Align':
-                        if (argValues.length > 3 || argValues.length == 0 || isNaN(argValues[0]) 
-                                || (argValues.length > 1 && !(argValues[1] == 'L' || argValues[1] == 'R' || argValues[1] == 'C'))){
-                            this.syntaxError('Incorrect arguments for ' + method, args);
+
+                    case "Align":
+                        int paddingLength;
+                        if (argValues.Count > 3 || argValues.Count == 0 || !int.TryParse((string)argValues[0], out paddingLength) 
+                            || (argValues.Count > 1 && !(((string)argValues[1]) == "L" || ((string)argValues[1]) == "R" || ((string)argValues[1]) == "C"))){
+                            //this.syntaxError("Incorrect arguments for " + method, args);
                         } else {
-                            let paddingType = argValues.length == 1 ? 'L' : argValues[1];
-                            let padding = (argValues.length == 3 && argValues[2] != '') ? argValues[2].toString() : ' ';
-                            let paddingLength = parseInt(argValues[0]);
-                            value = value.toString();
-                            while (value.length < paddingLength){
-                                if (paddingType == 'L' || paddingType == 'C'){
-                                    value = (value + padding).substr(0, paddingLength);
+                            string paddingType = argValues.Count == 1 ? "L" : ((string)argValues[1]);
+                            string padding = (argValues.Count == 3 && ((string)argValues[2]) != "") ? argValues[2].ToString() : " ";
+                            value = value.ToString();
+                            while (((string)value).Length < paddingLength)
+                            {
+                                if (paddingType == "L" || paddingType == "C")
+                                {
+                                    value = (value.ToString() + padding).Substring(0, paddingLength);
                                 }
-                                if (paddingType == 'R' || paddingType == 'C'){
-                                    let newLength = padding.length + value.length;
-                                    // insure that multi character padding doesn't cause the actual value to be cut and the value is not larger than padding length
-                                    value = ((padding.substr(newLength > paddingLength ? newLength - paddingLength : 0)) + value).substr(0, paddingLength);
+                                if (paddingType == "R" || paddingType == "C")
+                                {
+                                    int newLength = padding.Length + ((string)value).Length;
+                                    // insure that multi character padding doesn't cause the actual value to be cut and the value is not larger than padding length 
+                                value = ((padding.Substring(newLength > paddingLength ? newLength - paddingLength : 0)) + value).Substring(0, paddingLength);
+                                }
+                            } while (((string)value).Length < paddingLength)
+                            {
+                                if (paddingType == "L" || paddingType == "C")
+                                {
+                                    value = (value.ToString() + padding).Substring(0, paddingLength);
+                                }
+                                if (paddingType == "R" || paddingType == "C")
+                                {
+                                    int newLength = padding.Length + ((string)value).Length;
+                                    // insure that multi character padding doesn't cause the actual value to be cut and the value is not larger than padding length 
+                                    value = ((padding.Substring(newLength > paddingLength ? newLength - paddingLength : 0)) + value).Substring(0, paddingLength);
                                 }
                             }
                         }
                         break;
 
-                    case 'Trim':
-                        value = value.trim();
+                    case "Trim":
+                        value = value.ToString().Trim();
                         break;
 
-                    case 'StartsWith':
-                        value = value.startsWith(argValues[0]);
+                    case "StartsWith":
+                        value = value.ToString().StartsWith(argValues[0].ToString());
                         break;
 
-                    case 'EndsWith':
-                        value = value.endsWith(argValues[0]);
+                    case "EndsWith":
+                        value = value.ToString().EndsWith(argValues[0].ToString());
                         break;
 
-                    case 'Replace':
-                        if (typeof argValues[0] == "string"){
+                    case "Replace":
+                        if (argValues[0] is string){
                             // this is a common "replaceAll" implementation which should change when javascript replaceAll becomes standard
-                            value = value.split(argValues[0]).join(argValues[1]);
+                            value = value.ToString().Replace(argValues[0].ToString(), argValues[1].ToString());
                         } else {
-                            // presumably regex
-                            value = value.replace(argValues[0], argValues[1]);
+                            // regex
+                            if (((TypedData)argValues[0]).flags.Contains("g"))
+                            {
+                                // The C# regex assumes global 
+                                value = ((TypedData)argValues[0]).regex.Replace(value.ToString(), argValues[1].ToString());
+                            }
+                            else
+                            {
+                                // only replace the first found
+                                value = ((TypedData)argValues[0]).regex.Replace(value.ToString(), argValues[1].ToString(), 1);
+                            }
                         }
                         break;
 
-                    case 'Contains':
-                        value = value.includes(argValues[0]);
+                    case "Contains":
+                        value = value.ToString().Contains(argValues[0].ToString());
                         break;
 
-                    case 'Substr':
-                        if (argValues.length > 2 || isNaN(argValues[0]) || (argValues.length == 2 && isNaN(argValues[1]))){
-                            this.syntaxError('Incorrect arguments for ' + method, args);
+                    case "Substr":
+                        int nStart;
+                        int nCount = 0;
+                        if (argValues.Count > 2 || !int.TryParse(argValues[0].ToString(), out nStart) || (argValues.Count == 2 && !int.TryParse(argValues[1].ToString(), out nCount)))
+                        {
+                            //this.syntaxError(" Incorrect arguments for" + method, args);
                         }
-                        if (argValues.length == 1){
-                            value = value.substr(parseInt(argValues[0]));
-                        } else {
-                            value = value.substr(parseInt(argValues[0]), parseInt(argValues[1]));
+                        else
+                        {
+                            if (nStart > value.ToString().Length)
+                            {
+                                value = "";
+                            }
+                            else
+                            {
+                                if (argValues.Count == 1)
+                                {
+                                    value = value.ToString().Substring(nStart);
+                                }
+                                else
+                                {
+                                    int nMaxLength = value.ToString().Substring(nStart).Length;
+                                    value = value.ToString().Substring(nStart, Math.Min(nCount, nMaxLength));
+                                }
+                            }
                         }
                         break;
 
-                    case 'LastIndexOf':
-                        value = value.toString().lastIndexOf(argValues[0]);
+                    case "LastIndexOf":
+                        value = value.ToString().LastIndexOf(argValues[0].ToString());
                         break;
 
-                    case 'IndexOf':
-                        value = value.toString().indexOf(argValues[0])
+                    case "IndexOf":
+                        value = value.ToString().IndexOf(argValues[0].ToString());
                         break;
-                    */
+
                     case "OrderBy":
                     case "GroupBy":
                         if (method == "OrderBy")
@@ -1553,33 +1589,46 @@ namespace TextTemplate
                         }
                         break;
 
-                    /*
-                    case 'ToJson':
-                        if (value == null){
-                            value = 'null';
-                        } else {
-                            if (typeof value == 'object' && value.type == 'argument'){
-                                value = new TemplateData(value.list);
+                    case "ToJson":
+                        if (value == null)
+                        {
+                            value = "null";
+                        }
+                        else
+                        {
+                            if (value is TypedData && ((TypedData)value).type == "argument")
+                            {
+                                value = new TemplateData(((TypedData)value).list);
                             }
                         }
-                        if (value instanceof TemplateData){
-                            value = value.toJson();
-                        } else if (args.parentCtx.parentCtx && args.parentCtx.parentCtx.children[0]){
-                            let obj = {};
-                            let templateText : string = args.parentCtx.parentCtx.children[0].getText();
-                            if (templateText.startsWith('#')){
-                                obj[templateText] = this.subtemplates[templateText];
-                            } else if (templateText.startsWith('[')){
-                                obj['template'] = templateText.substr(1, templateText.length - 2);
-                            } else {
+                        if (value is TemplateData)
+                        {
+                            value = ((TemplateData)value).toJson();
+                        }
+                        else if (((RuleContext)args).Parent.Parent != null && ((RuleContext)args).Parent.Parent.GetChild(0) != null)
+                        {
+                            Dictionary<string, object> obj = new Dictionary<string, object>();
+                            string templateText = ((RuleContext)args).Parent.Parent.GetChild(0).GetText();
+                            if (templateText.StartsWith("#"))
+                            {
+                                obj[templateText] = this.subtemplates.ContainsKey(templateText) ? this.subtemplates[templateText] : null;
+                            }
+                            else if (templateText.StartsWith("["))
+                            {
+                                obj["template"] = templateText.Substring(1, templateText.Length - 2);
+                            }
+                            else
+                            {
                                 obj[templateText] = value == null ? null : value;
                             }
-                            value = JSON.stringify(obj);
-                        } else {
-                            value = value.toString();
+                            value = JsonSerializer.Serialize(obj);
+                        }
+                        else
+                        {
+                            value = value.ToString();
                         }
                         break;
-                    */
+
                     case "ToDate":
                         if (value is TypedData && ((TypedData)value).type == "date"){
                             value = ((TypedData)value).dateString;
@@ -1625,7 +1674,7 @@ namespace TextTemplate
                         break;
                     /*
                     case '@ValueFunction':
-                        if (argValues.length == 0){
+                        if (argValues.Count == 0){
                             delete value['valueFunction'];
                         } else {
                             let valueFunction = Externals.getValueFunction(argValues[0]);
@@ -1670,7 +1719,7 @@ namespace TextTemplate
                         break;
                     /*
                     case '@DefaultIndent':
-                        if (argValues.length == 0){
+                        if (argValues.Count == 0){
                             delete value['defaultIndent'];
                         } else {
                             let nDefaultIndent = parseInt(argValues[0]);
@@ -1721,7 +1770,7 @@ namespace TextTemplate
                     /*
                     case '@EncodeDataFor':
                         let encoding = argValues[0];
-                        if (argValues.length == 0){
+                        if (argValues.Count == 0){
                             delete this.annotations['encoding'];
                         } else if (encoding != 'html' && encoding != 'xml' && encoding != 'uri'){
                             this.syntaxError("Parameter must be 'xml', 'html' or 'uri'", args.parentCtx);
@@ -1731,9 +1780,9 @@ namespace TextTemplate
                         break;
 
                     case '@Falsy':
-                        if (argValues.length == 0){
+                        if (argValues.Count == 0){
                             delete this.annotations['falsy'];
-                        } else if (argValues.length != 1 || argValues[0].constructor.name != 'RegExp'){
+                        } else if (argValues.Count != 1 || argValues[0].constructor.name != 'RegExp'){
                             this.syntaxError('@Falsy takes a single regular expression', args.parentCtx)
                         } else {
                             value['falsy'] = argValues[0];
@@ -1852,7 +1901,12 @@ namespace TextTemplate
                 parts = partsAsList; // do compose expects arrays 
             }
             if (!(parts is List<object>)) {
-                return parts;
+                //if (mode == 0){
+                    return parts;
+                //}
+                //List<object> partsList = new List<object>();
+                //partsList.Add(parts);
+                //parts = partsList;
             }
             List<string> lines = new List<string>();
             lines.Add("");
