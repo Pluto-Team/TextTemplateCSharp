@@ -1128,10 +1128,12 @@ namespace TextTemplate
                         object originalValue = value;
                         if (value is string && ((string)value).Contains("\x01{.}"))
                         {
-                            // special case for matching the output of bullet templates 
+                            // special case for matching the output of bullet templates
+			    BulletIndent oldBulletIndent = this.bulletIndent;
                             List<object> composeArray = new List<object>();
                             composeArray.Add(value);
                             value = this.compose(composeArray, 1); // compose with bulleting 
+			    this.bulletIndent = oldBulletIndent;
                         }
                         bool matches = false;
                         if (argValues.Count == 0 || this.valueIsMissing(value))
@@ -1901,12 +1903,12 @@ namespace TextTemplate
                 parts = partsAsList; // do compose expects arrays 
             }
             if (!(parts is List<object>)) {
-                //if (mode == 0){
+                if (mode == 0){
                     return parts;
-                //}
-                //List<object> partsList = new List<object>();
-                //partsList.Add(parts);
-                //parts = partsList;
+                }
+                List<object> partsList = new List<object>();
+                partsList.Add(parts);
+                parts = partsList;
             }
             List<string> lines = new List<string>();
             lines.Add("");
