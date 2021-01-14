@@ -10,7 +10,6 @@ using System.Text.RegularExpressions;
 using System.Diagnostics;
 using System;
 using System.Text.Json;
-///using MomentSharp;
 
 namespace TextTemplate
 {
@@ -983,7 +982,7 @@ namespace TextTemplate
             {
                 value = value; // null with most methods returns null 
             }
-            else if (!(value is string) && (///!(value != null && typeof value == "object" && value.type == "date") && ( 
+            else if (!(value is string) && !(value is TypedData && ((TypedData)value).type == "date") && ( 
                 method == "ToUpper"
                 || method == "ToLower"
                 || method == "Trim"
@@ -1385,18 +1384,6 @@ namespace TextTemplate
                                     // insure that multi character padding doesn't cause the actual value to be cut and the value is not larger than padding length 
                                 value = ((padding.Substring(newLength > paddingLength ? newLength - paddingLength : 0)) + value).Substring(0, paddingLength);
                                 }
-                            } while (((string)value).Length < paddingLength)
-                            {
-                                if (paddingType == "L" || paddingType == "C")
-                                {
-                                    value = (value.ToString() + padding).Substring(0, paddingLength);
-                                }
-                                if (paddingType == "R" || paddingType == "C")
-                                {
-                                    int newLength = padding.Length + ((string)value).Length;
-                                    // insure that multi character padding doesn't cause the actual value to be cut and the value is not larger than padding length 
-                                    value = ((padding.Substring(newLength > paddingLength ? newLength - paddingLength : 0)) + value).Substring(0, paddingLength);
-                                }
                             }
                         }
                         break;
@@ -1415,7 +1402,6 @@ namespace TextTemplate
 
                     case "Replace":
                         if (argValues[0] is string){
-                            // this is a common "replaceAll" implementation which should change when javascript replaceAll becomes standard
                             value = value.ToString().Replace(argValues[0].ToString(), argValues[1].ToString());
                         } else {
                             // regex
@@ -1441,7 +1427,7 @@ namespace TextTemplate
                         int nCount = 0;
                         if (argValues.Count > 2 || !int.TryParse(argValues[0].ToString(), out nStart) || (argValues.Count == 2 && !int.TryParse(argValues[1].ToString(), out nCount)))
                         {
-                            //this.syntaxError(" Incorrect arguments for" + method, args);
+                            ///this.syntaxError(" Incorrect arguments for" + method, args);
                         }
                         else
                         {
