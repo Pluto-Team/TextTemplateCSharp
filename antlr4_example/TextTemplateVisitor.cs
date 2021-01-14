@@ -24,7 +24,7 @@ namespace TextTemplate
         string subtemplateLevel = ""; // keeps track of subtemplates within subtemplates
         Dictionary<string, object> annotations = new Dictionary<string, object>();
         private Dictionary<string, TextTemplateParser.CompilationUnitContext> parsedTemplates = new Dictionary<string, TextTemplateParser.CompilationUnitContext>();
-        Func<string, string> urlCallback = null;
+        Dictionary<string, object> options = null;
         public TextTemplateVisitor()
         {
             annotations.Add("bulletStyles", null);
@@ -202,9 +202,9 @@ namespace TextTemplate
                     this.errors = oldErrors;
                     try {
                         if (((string)context).ToLower().StartsWith("http") || ((string)context).StartsWith("/")) {
-                            if (this.urlCallback != null)
+                            if (options != null && options["urlCallback"] is Func<string, string>)
                             {
-                                string data = urlCallback((string)context);
+                                string data =  ((Func<string, string>)options["urlCallback"])((string)context);
                                 this.context = new TemplateData(data, this.context);
                             }
                             /*
@@ -2699,9 +2699,9 @@ namespace TextTemplate
             }
             return 0;
         }
-        public string interpret(string input, Func<string, string> urlCallback = null, Dictionary<string, string> options = null)
+        public string interpret(string input, Dictionary<string, object> options = null)
         {
-            this.urlCallback = urlCallback;
+            this.options = options;
             //callback({ type: 'status', status: 'parsing...'});
             ///let errors : Error[] = [];
             Dictionary<string, Subtemplate> processedSubtemplates = null;

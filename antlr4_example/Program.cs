@@ -4,6 +4,7 @@ using System.Text;
 using Antlr4.Runtime;
 using TextTemplate;
 using System.Diagnostics;
+using System.Collections.Generic;
 
 namespace TestTextTemplates
 {
@@ -699,17 +700,11 @@ Test 16 passed
 				}
 				return ret;
 			};
-			string result = visitor.interpret(input, urlCallback);
+            Dictionary<string, object> options = new Dictionary<string, object>();
+            options["urlCallback"] = urlCallback;
+			string result = visitor.interpret(input, options);
 			Debug.Write(result + "\n");
 			Console.Write(result + "\n");
-			//object interpolated = (string)visitor.Visit(compilationUnitContext);
-			//Debug.Write(interpolated);
-			//Console.Write(interpolated);
-			//}
-			//catch (Exception ex)
-			//{
-			//	Console.WriteLine("Error: " + ex);
-			//}
 		}
 	}
 }
