@@ -123,7 +123,7 @@ namespace TextTemplate
             if (value == null)
             {
                 Debug.Write("Missing value for " + key);
-                string missingValue = annotations.ContainsKey("missingValue") ? ((string)annotations["missingValue"]).Replace("{key}", key) : null;
+                string missingValue = annotations.ContainsKey("missingValue") && annotations["missingValue"] != null  ? ((string)annotations["missingValue"]).Replace("{key}", key) : null;
                 return new TypedData("missing", missingValue: missingValue, key: key);
             }  else if (this.annotations.ContainsKey("dateTest") && ((Regex)annotations["dateTest"]).IsMatch(key)){
                 string dateFormat = annotations.ContainsKey("dateFormat") ? ((string)annotations["dateFormat"]) : null;
@@ -595,7 +595,8 @@ namespace TextTemplate
             bool bHasSubtemplates = ctx.children[lastChildIndex] is TextTemplateParser.TemplateContentsContext && ctx.children[lastChildIndex].ChildCount > 0 && ctx.children[lastChildIndex].GetChild(0) is TextTemplateParser.SubtemplateSectionContext;
             if (bHasSubtemplates)
             {
-                // clone the current subtemplates because the ones found here are scoped 
+                ///
+		// clone the current subtemplates because the ones found here are scoped 
                 /*
                 for (let key in this.subtemplates){
                     oldSubtemplates[key] = this.subtemplates[key];
@@ -661,13 +662,14 @@ namespace TextTemplate
         {
             return VisitNamedSubtemplateExt(ctx);
         }
-        private object VisitNamedSubtemplateExt(RuleContext ctx, string name = null, bool blnclude = false) {
+        private object VisitNamedSubtemplateExt(RuleContext ctx, string name = null, bool bInclude = false) {
             string subtemplateName = name != null ? name : ctx.GetText();
-            if (this.subtemplates[subtemplateName] != null) {
-                /*
+            if (!this.subtemplates.ContainsKey("subtemplateName") && options != null && options.ContainsKey("urlCallback") && options["urlCallback"] is Func<string, string>) 
+	    {
                     // load the subtemplate from the server
-                    let subtemplateUrl = '/subtemplate/' + subtemplateName.substr(1); // remove the #
-                    if (!urls[subtemplateUrl]){
+                    string subtemplateUrl = "/subtemplate/" + subtemplateName.Substring(1); // remove the #
+		    ///
+                    /*if (!urls[subtemplateUrl]){
                         urls[subtemplateUrl] = {};
                     }
                     if (!urls[subtemplateUrl].data){
@@ -682,17 +684,18 @@ namespace TextTemplate
                         this.syntaxError(msg, ctx);
                         this.subtemplates[subtemplateName] = '[' + msg + ']';
                         return '';
-                    }
-                    // process info between brackets adding an extra nl so "included" subtemplates can start with "Subtemplates:"
-                    let processed : any = processSubtemplates((bInclude ? '\n' : '') + data.substr(1, data.lastIndexOf(']') - 1), 0);
-                    // replace the brackets around the extracted input when storing the subtemplate and add any methods on the template
-                    this.subtemplates[subtemplateName] = '[' + processed.input + ']' + data.substr(data.lastIndexOf(']') + 1); 
-                    // parse and cache local subtemplates
-                    Object.keys(processed.subtemplates).forEach((key)=>{
-                        let subtemplate = processed.subtemplates[key];
-                        this.parseSubtemplates(processed.subtemplates[key], key, subtemplate.line - 1, subtemplate.column);
-                    });
-                */
+                    }*/
+	    	// process info between brackets adding an extra nl so "included" subtemplates can start with "Subtemplates:"
+		Dictionary<string, Subtemplate> subtemplates;
+		string data = ((Func<string, string>)options["urlCallback"])(subtemplateUrl);
+		processSubtemplates((bInclude ? "\n" : "") + data.Substring(1, data.LastIndexOf(']') - 1), 0, out input, out subtemplates);
+		// replace the brackets around the extracted input when storing the subtemplate and add any methods on the template
+	    	this.subtemplates[subtemplateName] = "[" + processed.input + "]" + data.Substring(data.LastIndexOf("]") + 1); 
+	    	// parse and cache local subtemplates
+	    	subtemplates.Keys.ToList().ForEach((key)=>{
+                    Subtemplate subtemplate = subtemplates[key];
+                    this.parseSubtemplates(processed.subtemplates[key], key, subtemplate.line - 1, subtemplate.column);
+	    	});
             }
             string parserInput = "{:" + this.subtemplates[subtemplateName] + "}";
             string oldSubtemplateLevel = this.subtemplateLevel;
