@@ -24,7 +24,7 @@ namespace TextTemplate
         string subtemplateLevel = ""; // keeps track of subtemplates within subtemplates
         Dictionary<string, object> annotations = new Dictionary<string, object>();
         private Dictionary<string, TextTemplateParser.CompilationUnitContext> parsedTemplates = new Dictionary<string, TextTemplateParser.CompilationUnitContext>();
-        Dictionary<string, object> options = null;
+        private Dictionary<string, object> options = new Dictionary<string, object>();
         public TextTemplateVisitor()
         {
             annotations.Add("bulletStyles", null);
@@ -289,12 +289,12 @@ namespace TextTemplate
             object value = null; 
             Dictionary<string, object> oldAnnotations = new Dictionary<string, object>(); 
             annotations.Keys.ToList().ForEach((key) => { 
-                oldAnnotations[key.ToString()] = this.annotations[key.ToString()]; 
+                oldAnnotations[key] = this.annotations[key]; 
             });
             Dictionary<string, string>  oldSubtemplates = new Dictionary<string, string>(); // only needed if this spec contains subtemplates
             // clone the current subtemplates in case methods add new ones that overwrite more global ones
             foreach (var key in this.subtemplates.Keys){
-                oldSubtemplates.Add(key.ToString(), this.subtemplates[key.ToString()]);
+                oldSubtemplates.Add(key, this.subtemplates[key]);
             }
             if (valueContext != null) { // null implies that the value is the current context
                 bool bTargetIsTemplate = valueContext.GetText().StartsWith("[") || valueContext.GetText().StartsWith("#"); // value will be obtained from a template 
