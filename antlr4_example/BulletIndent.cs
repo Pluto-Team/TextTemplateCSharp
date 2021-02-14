@@ -7,7 +7,7 @@ using System.Text.RegularExpressions;
 
 namespace TextTemplate
 {
-    class BulletIndent
+    public class BulletIndent
     {
 		public int? level;
 		public int index;

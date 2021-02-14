@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Text.RegularExpressions;
-using System.Text.Json;
+using System.Collections;
 
 namespace TextTemplate
 {
@@ -20,28 +20,26 @@ namespace TextTemplate
 			object json;
 			if (jsonData is string)
 			{
-				if (((string)jsonData).StartsWith("{"))
-				{
-					json = JsonSerializer.Deserialize<Dictionary<string, object>>((string)jsonData);
-				}
-				else if (((string)jsonData).StartsWith("["))
-				{
-					json = JsonSerializer.Deserialize<List<object>>((string)jsonData);
-				}
-				else
-				{
-					// TemplateData supports arrays of strings by making them lists of dictionaries with a single element
-					json = JsonSerializer.Deserialize<dynamic>("{\"_\": \"" + ((string)jsonData).Replace("\"", "\\\"") + "\"}");
-				}
+				json = JsonSupport.Deserialize((string)jsonData);
+				// TemplateData supports arrays of strings by making them lists of dictionaries with a single element
+				///json = JsonSerializer.Deserialize<dynamic>("{\"_\": \"" + ((string)jsonData).Replace("\"", "\\\"") + "\"}");
 			}
-			else if (jsonData is List<object>) {
+			else if (jsonData is List<object> || jsonData is Object[] || jsonData is ArrayList)
+            {
 				this.type = "list";
-				((List<object>)jsonData).ForEach((item) => {
+				if (jsonData is ArrayList)
+                {
+					jsonData = ((ArrayList)jsonData).ToArray().ToList();
+                } else if (jsonData is Object[])
+                {
+					jsonData = ((Object[])jsonData).ToList();
+                }
+				((IList<object>)jsonData).ToList().ForEach((item) => {
 					this.list.Add(new TemplateData(item, this));
 				});
 				this.parent = parent;
 				return;
-			}
+            }
 			else if (jsonData is TemplateData)
 			{
 				// filter or clone
@@ -56,7 +54,7 @@ namespace TextTemplate
 				}
 				else
 				{
-					json = JsonSerializer.Deserialize<Dictionary<string, object>>(((TemplateData)jsonData).toJson()); // clone by converting to Json and back
+					json = JsonSupport.Deserialize(((TemplateData)jsonData).toJson()); // clone by converting to Json and back
 				}
 			}
 			else
@@ -68,57 +66,38 @@ namespace TextTemplate
 				this.type = "list";
 				((List<object>)json).ForEach(item =>
 				{
-					this.list.Add(new TemplateData(item is TemplateData ? item : item.ToString(), this));
+					this.list.Add(new TemplateData(item is TemplateData || item is Dictionary<string, object> ? item : item.ToString(), this));
 				}) ;
-			}
-			else if (json is JsonElement && ((JsonElement)json).ValueKind.ToString() == "Array")
-			{
-				this.type = "list";
-				((JsonElement)json).EnumerateArray().ToList().ForEach(item =>
-				{
-					this.list.Add(new TemplateData(item.ToString(), this));
-				});
 			}
 			else
 			{
-				this.type = "dictionary";
-				((Dictionary<string, object>)json).Keys.ToList().ForEach(keyname =>
-				   {
-					   object value = ((Dictionary<string, object>)json)[keyname];
-					   if (value is JsonElement)
-                       {
-							switch (((JsonElement)value).ValueKind.ToString()){
-								case "String":
-								   value = value.ToString();
-								   this.dictionary[keyname] = value;
-								   break;
+				object converted = JsonSupport.ConvertToDictionaryOrList(json);
+				if (converted is Dictionary<string, object>)
+				{
+					this.type = "dictionary";
+					Dictionary<string, object> dict = new Dictionary<string, object>();
+					foreach (string key in ((Dictionary<string, object>)converted).Keys)
+					{
+						object keyItem = ((Dictionary<string, object>)converted)[key];
+						if (keyItem is List<object> || keyItem is Dictionary<string, object> || keyItem is Object[] || keyItem is ArrayList)
+						{
+							dict.Add(key, new TemplateData(((Dictionary<string, object>)converted)[key], this));
+						} else
+						{
+							dict.Add(key, ((Dictionary<string, object>)converted)[key]);
 
-							   case "Array":
-								   if (((JsonElement)value).GetArrayLength() != 0)
-								   {
-									   this.dictionary[keyname] = new TemplateData(value.ToString(), this);
-								   }
-								   break;
-
-							   case "Object":
-								   this.dictionary[keyname] = new TemplateData(value.ToString(), this);
-								   break;
-
-							   default:
-								   string oops = "oops";
-								   break;
-							}
-                       }
-					   else if (value is List<object> && ((List<object>)value).Count > 0)
-                       {
-						   this.dictionary[keyname] = new TemplateData(value, this);
-
-					   }
-					   else if (!(value is List<object>) && value != null) // don't add null values or empty arrays
-					   {
-						   this.dictionary[keyname] = value;
-					   }
-				   });
+						}
+					}
+					this.dictionary = dict;
+				}
+				else
+                {
+					this.type = "list";
+					foreach(object itm in (List<object>)converted)
+                    {
+						this.list.Add(new TemplateData(itm));
+                    }
+                }
 			}
 			if (parent != null)
 			{
@@ -170,7 +149,7 @@ namespace TextTemplate
 				// already a list, so just clone it 
 				return new TemplateData(this);
 			}
-			Dictionary<string, object> dict = JsonSerializer.Deserialize<Dictionary<string, object>>(this.toJson());
+			Dictionary<string, object> dict = (Dictionary<string, object>)JsonSupport.Deserialize(this.toJson());
 			List<object> list = new List<object>();
 			list.Add(dict);
 			return new TemplateData(list);
@@ -249,5 +228,9 @@ namespace TextTemplate
 		{
 			this.dictionary[name] = value;
 		}
-	}
+        public override string ToString()
+        {
+			return this.toJson();
+        }
+    }
 }

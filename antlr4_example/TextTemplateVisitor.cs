@@ -8,12 +8,10 @@ using Antlr4.Runtime.Misc;
 using Antlr4.Runtime.Tree;
 using System.Text.RegularExpressions;
 using System.Diagnostics;
-using System;
-using System.Text.Json;
 
 namespace TextTemplate
 {
-    class TextTemplateVisitor : TextTemplateParserBaseVisitor<object>
+    public class TextTemplateVisitor : TextTemplateParserBaseVisitor<object>
     {
         TemplateData context;
         Dictionary<string, string> subtemplates = new Dictionary<string, string>();
@@ -89,7 +87,7 @@ namespace TextTemplate
             object value = null;
             if (key == "@")
             {
-                return new TemplateData(JsonSerializer.Serialize(this.annotations), this.context);
+                return new TemplateData(JsonSupport.Serialize(this.annotations), this.context);
             }
             else if (key.StartsWith("@.")) {
                 /*
@@ -184,6 +182,12 @@ namespace TextTemplate
                 else
                 {
                     context = ctx.children[0].GetChild(0).Accept(this);
+                    if (this.context != null && (context is TypedData) && ((TypedData)context).type == "argument")
+                    {
+                        // special case when the existing context is a list.  Recompute without the context
+                        this.context = null;
+                        context = ctx.children[0].Accept(this);
+                    }
                 }
                 context = this.compose(context, 0);
                 if (context is object[] && ((object[])context).Length == 1)
@@ -202,7 +206,7 @@ namespace TextTemplate
                     this.errors = oldErrors;
                     try {
                         if (((string)context).ToLower().StartsWith("http") || ((string)context).StartsWith("/")) {
-                            if (options != null && options["urlCallback"] is Func<string, string>)
+                            if (options != null && options.ContainsKey("urlCallback") && options["urlCallback"] is Func<string, string>)
                             {
                                 string data =  ((Func<string, string>)options["urlCallback"])((string)context);
                                 this.context = new TemplateData(data, this.context);
@@ -324,7 +328,7 @@ namespace TextTemplate
 
                     }
                 }
-                if (this.context != null && this.context.type == "list")
+                if (this.context != null && this.context.type == "list" && !valueContext.GetText().StartsWith("^"))
                 {
                     // for non-annotations and under special circumstances, depending on how it was parsed, we'll obtain a single value rather than a list 
                     bool bAggregatedResult = valueContext is TextTemplateParser.InvokedTemplateSpecContext; // only aggregate for this specific context 
@@ -388,7 +392,7 @@ namespace TextTemplate
                     }
                 }
             }
-            if (JsonSerializer.Serialize(annotations["bulletStyles"]) != JsonSerializer.Serialize(oldAnnotations["bulletStyles"]))
+            if (JsonSupport.Serialize(annotations["bulletStyles"]) != JsonSupport.Serialize(oldAnnotations["bulletStyles"]))
             {
                 // the bullet style has changed, so compose the output before the styles get modified back
                 // TODO: consider instead adding the current bullet style to all bullets and lists in the output
@@ -664,10 +668,10 @@ namespace TextTemplate
         }
         private object VisitNamedSubtemplateExt(RuleContext ctx, string name = null, bool bInclude = false) {
             string subtemplateName = name != null ? name : ctx.GetText();
-            if (!this.subtemplates.ContainsKey("subtemplateName") && options != null && options.ContainsKey("urlCallback") && options["urlCallback"] is Func<string, string>) 
-	    {
-                    // load the subtemplate from the server
-                    string subtemplateUrl = "/subtemplate/" + subtemplateName.Substring(1); // remove the #
+            if (!this.subtemplates.ContainsKey(subtemplateName) && options != null && options.ContainsKey("urlCallback") && options["urlCallback"] is Func<string, string>) 
+    	    {
+                // load the subtemplate from the server
+                string subtemplateUrl = "/subtemplate/" + subtemplateName.Substring(1); // remove the #
 		    ///
                     /*if (!urls[subtemplateUrl]){
                         urls[subtemplateUrl] = {};
@@ -685,17 +689,17 @@ namespace TextTemplate
                         this.subtemplates[subtemplateName] = '[' + msg + ']';
                         return '';
                     }*/
-	    	// process info between brackets adding an extra nl so "included" subtemplates can start with "Subtemplates:"
-		Dictionary<string, Subtemplate> subtemplates;
-		string data = ((Func<string, string>)options["urlCallback"])(subtemplateUrl);
-		processSubtemplates((bInclude ? "\n" : "") + data.Substring(1, data.LastIndexOf(']') - 1), 0, out input, out subtemplates);
-		// replace the brackets around the extracted input when storing the subtemplate and add any methods on the template
-	    	this.subtemplates[subtemplateName] = "[" + processed.input + "]" + data.Substring(data.LastIndexOf("]") + 1); 
-	    	// parse and cache local subtemplates
-	    	subtemplates.Keys.ToList().ForEach((key)=>{
-                    Subtemplate subtemplate = subtemplates[key];
-                    this.parseSubtemplates(processed.subtemplates[key], key, subtemplate.line - 1, subtemplate.column);
-	    	});
+	            // process info between brackets adding an extra nl so "included" subtemplates can start with "Subtemplates:"
+		        Dictionary<string, Subtemplate> subtemplates;
+		        string data = ((Func<string, string>)options["urlCallback"])(subtemplateUrl);
+		        processSubtemplates((bInclude ? "\n" : "") + data.Substring(1, data.LastIndexOf(']') - 1), 0, out input, out subtemplates);
+		        // replace the brackets around the extracted input when storing the subtemplate and add any methods on the template
+	    	    this.subtemplates[subtemplateName] = "[" + input + "]" + data.Substring(data.LastIndexOf("]") + 1); 
+	    	    // parse and cache local subtemplates
+	    	    subtemplates.Keys.ToList().ForEach((key)=>{
+                        Subtemplate subtemplate = subtemplates[key];
+                        this.parseSubtemplates(subtemplates[key], key, subtemplate.line - 1, subtemplate.column);
+	    	    });
             }
             string parserInput = "{:" + this.subtemplates[subtemplateName] + "}";
             string oldSubtemplateLevel = this.subtemplateLevel;
@@ -1294,7 +1298,7 @@ namespace TextTemplate
                                 this.context = (TemplateData)value;
                                 Dictionary<string, object> dollarVariables = new Dictionary<string, object>();
                                 oldContext.getKeys().ForEach((key) => {
-                                    if (key.ToString().StartsWith("$"))
+                                    if (key.StartsWith("$"))
                                     {
                                         dollarVariables[key] = oldContext.getValue(key);
                                     }
@@ -1612,7 +1616,7 @@ namespace TextTemplate
                             {
                                 obj[templateText] = value == null ? null : value;
                             }
-                            value = JsonSerializer.Serialize(obj);
+                            value = JsonSupport.Serialize(obj);
                         }
                         else
                         {
@@ -2326,7 +2330,7 @@ namespace TextTemplate
             // using the JSON parser to unescape the string 
             try
             {
-                Dictionary<string, string> tempJson = JsonSerializer.Deserialize<Dictionary<string, string>>(@"{""data"":""" + value + @"""}");
+                Dictionary<string, object> tempJson = (Dictionary<string, object>)JsonSupport.Deserialize(@"{""data"":""" + value + @"""}");
                 return (string)tempJson["data"];
             }
             catch (Exception e)
