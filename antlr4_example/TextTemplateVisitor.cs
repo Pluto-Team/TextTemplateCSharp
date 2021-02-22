@@ -248,7 +248,7 @@ namespace TextTemplate
                         this.context = (TemplateData)this.invokeMethods(null, invocations); // a null valueContext implies this.context 
                     }
                 }
-                else if (bHasContext) { // context may not be specified
+                else if (bHasContext && context is TemplateData) { // context may not be specified
                     this.context = (TemplateData)context;
                 }
             }
@@ -1283,6 +1283,10 @@ namespace TextTemplate
                                 {
                                     value = ((TemplateData)value).Count();
                                 }
+                                else if (value == null || (value is TypedData && ((TypedData)value).type == "missing"))
+                                {
+                                    value = 0;
+                                }
                                 else
                                 {
                                     value = 1;
@@ -1322,8 +1326,13 @@ namespace TextTemplate
                                             dollarVariables.Keys.ToList().ForEach((key) => {
                                                 newContext.dictionary.Remove(key.ToString()); // remove the added $ variables 
                                             });
+                                            context.getKeys().ForEach((key) => {
+                                                if (key.StartsWith('$'))
+                                                {
+                                                    context.Remove(key); // prevent clone from breaking
+                                                }
+                                            });
                                             result.Add(new TemplateData(this.context));
-
                                         }
                                         this.context = oldContext;
                                     });
@@ -1335,7 +1344,7 @@ namespace TextTemplate
                                     {
                                         filterResult = ((List<object>)filterResult)[0];
                                     }
-                                    if (filterResult != null)
+                                    if (filterResult != null && !(filterResult is bool && ((bool)filterResult) == false))
                                     {
                                         result.Add(this.context); // no filtering (or cloning) necessary 
                                     }
@@ -1784,6 +1793,56 @@ namespace TextTemplate
                         }
                         break;
                     */
+                    case "Index":
+                        int index = 0;
+                        if (argValues.Count > 1 || (argValues.Count > 0 && (!int.TryParse(argValues[0].ToString(), out index) || index == 0 || !(value is TemplateData))))
+                        {
+                            //this.syntaxError('Invalid argument for Index', args.parentCtx);
+                            return null;
+                        }
+                        if (argValues.Count > 0)
+                        {
+                            if (((TemplateData)value).type == "dictionary")
+                            {
+                                if (index == 1)
+                                {
+                                    return value;
+                                }
+                                else
+                                {
+                                    return new TemplateData("[]", (TemplateData)value);
+                                }
+                            }
+                            if (((TemplateData)value).list.Count >= index)
+                            {
+                                return new TemplateData(((TemplateData)value).list[index - 1], (TemplateData)value);
+                            }
+                            return new TemplateData("[]", (TemplateData)value);
+                        }
+                        if (value == null || !(value is TemplateData))
+                        {
+                            return 1;
+                        }
+                        TemplateData parent = ((TemplateData)value).parent;
+                        TemplateData child = (TemplateData)value;
+                        while (parent != null && parent.type != "list")
+                        {
+                            child = parent;
+                            parent = child.parent;
+                        }
+                        if (parent == null)
+                        {
+                            return 1;
+                        }
+                        for (int i = 0; i < parent.list.Count; i++)
+                        {
+                            if (child == parent.list[i])
+                            {
+                                return i + 1;
+                            }
+                        }
+                        return 1;
+
                     default:
                         value = value + "[." + method + "(" + string.Join(", ", argValues) + ")]";
                         //this.syntaxError("ERROR: unknown function: ." + method + "(" + argValues.join(", ") + ")", args.parentCtx); 

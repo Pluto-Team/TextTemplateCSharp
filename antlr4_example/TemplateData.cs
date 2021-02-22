@@ -11,8 +11,8 @@ namespace TextTemplate
     class TemplateData
     {
 		public Dictionary<string, object> dictionary = new Dictionary<string, object>();
-		private List<TemplateData> list = new List<TemplateData>();
-		private TemplateData parent;
+		public List<TemplateData> list = new List<TemplateData>();
+		public TemplateData parent;
 		public string type;
 		static List<object> foundObjects; // used to protect against ToJson loops
 		public TemplateData(object jsonData, TemplateData parent = null)
@@ -108,6 +108,13 @@ namespace TextTemplate
 		{
 			return this.dictionary.Keys.ToList<string>();
 		}
+		public void Remove(string key)
+        {
+			if (type == "dictionary" && dictionary.ContainsKey(key))
+			{
+				dictionary.Remove(key);
+            }
+        }
 		public object getValue(string key)
 		{
 			string[] keySplit = key.Split('.');
@@ -120,6 +127,10 @@ namespace TextTemplate
 			{
 				value = this.parent != null ? this.parent : this;
 			}
+			else if (keySplit[0] == "*")
+            {
+				value = this;
+            }
 			if (keySplit.Length == 1 || value == null) 
 {
 				return value;
@@ -189,7 +200,11 @@ namespace TextTemplate
 						result += (this.indent(indentLevel + 1) + (bComma ? "," : "") + "\"" + keyname + "\": ");
 						if (value is TemplateData)
 						{
-							if (!TemplateData.foundObjects.Contains(value))
+							if (TemplateData.foundObjects.Contains(value))
+                            {
+								result += "null";
+                            }
+							else
 							{
 								result += ((TemplateData)value).toJson(indentLevel + 1);
 							}
