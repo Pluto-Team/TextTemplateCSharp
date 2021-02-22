@@ -32,7 +32,7 @@ Subtemplates:
 
 {#formatPet:[a {type} named {name}]}
 {#anded:[{$0.Join(', ',' and ')}]}";
-			string outline = @"People:{#data:[
+			input = @"People:{#data:[
    {.} {[{ 
       lastName}{ 
       firstName.#Prepend(', ')}{    
@@ -40,11 +40,11 @@ Subtemplates:
    }].ToUpper().#Quoted()} 
       {.} Lastname: {lastName.IfMissing('No Last Name')}   
       {.} FirstName: {firstName}  
-      {.} Pets {pets=>[({pets.Index(4).Count()}):  
-         {.} Domesticated ({pets.Index(4).#Domesticated().Count()}): 
-            {.} {pets.Index(4).#Domesticated():[{name}]}  
-         {.} Non-domesticated ({pets.Index(4).#NonDomesticated().Count()}): 
-            {.} {pets.Index(4).#NonDomesticated():[{name}]}    
+      {.} Pets {pets=>[({pets.Count()}):  
+         {.} Domesticated ({pets.#Domesticated().Count()}): 
+            {.} {pets.#Domesticated():[{#formatPet} #{*.Index()}]}  
+         {.} Non-domesticated ({pets.#NonDomesticated().Count()}): 
+            {.} {pets.#NonDomesticated():[{#formatPet} #{*.Index()}]}    
    ],[no pets]
    } //
 ].@MissingValue('No Information Provided')}       
@@ -641,7 +641,6 @@ Test 16 passed
 ]}
 {#data:[/data/people]}";
 			input = input.Replace("\r", "");
-            input = outline.Replace("\r", "");
 			AntlrInputStream inputStream = new AntlrInputStream(input);
 			TextTemplateLexer textTemplateLexer = new TextTemplateLexer(inputStream);
 			CommonTokenStream commonTokenStream = new CommonTokenStream(textTemplateLexer);
